@@ -56,7 +56,7 @@ export const menuData: INavbarData[] = [
         subitens: [
             {
                 routerLink: 'pagamentos-regulares',
-                label: 'Pagamentos Regulares',
+                label: 'Pag. Regulares',
                 subitens: [
                     {
                         routerLink: 'criar-pag-regular',

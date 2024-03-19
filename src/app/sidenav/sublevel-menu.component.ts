@@ -15,9 +15,10 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
     >
       <li *ngFor="let item of data.subitens" class="sublevel-nav-item">
         <a class="sublevel-nav-link"
-          (click)="handleClick(item)"
-          *ngIf="item.subitens && item.subitens.length > 0"
+        (click)="handleClick(item)"
+        *ngIf="item.subitens && item.subitens.length > 0"
         >
+          <mat-icon class="sublevel-link-icon">arrow_right</mat-icon>
           <span class="sublevel-link-text" *ngIf="collapsed">{{item.label}}</span>
             <mat-icon *ngIf="item.subitens && collapsed" class="menu-collapse-icon">
               {{!item.expanded ? 'chevron_right' : 'expand_more'}}
@@ -29,10 +30,12 @@ import { animate, state, style, transition, trigger } from '@angular/animations'
           routerLinkActive="active-sublevel"
           [routerLinkActiveOptions]="{exact: true}"
         >
+        <mat-icon class="sublevel-link-icon">arrow_right</mat-icon>
         <span class="sublevel-link-text" *ngIf="collapsed">{{item.label}}</span>
       </a>
         <div *ngIf="item.subitens && item.subitens">
           <app-sublevel-menu
+            [data]="item"
             [collapsed]="collapsed"
             [multiple]="multiple"
             [expanded]="item.expanded"
