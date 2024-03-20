@@ -6,36 +6,40 @@
       <mat-icon class="close-icon">close</mat-icon>
     </button>
   </div>
-  <ul class="sidenav-nav">
-    <li class="sidenav-nav-item" *ngFor="let data of navData">
-      <a class="sidenav-nav-link" (click)="handleClick(data)"
-        *ngIf="data.subitens && data.subitens.length > 0"
-      >
-        <mat-icon class="sidenav-link-icon">{{ data.icon }}</mat-icon>
-        <span class="sidenav-link-text" @fadeInOut *ngIf="collapsed">
-          {{data.label}}
-        </span>
-        <mat-icon *ngIf="data.subitens && collapsed" class="menu-collapse-icon">
-          {{!data.expanded ? 'chevron_right' : 'expand_more'}}
-        </mat-icon>
-      </a>
-      <a class="sidenav-nav-link"
-        *ngIf="!data.subitens || (data.subitens && data.subitens.length ===0)"
-        [routerLink]="[data.routerLink]"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: true }"
-      >
-        <mat-icon class="sidenav-link-icon">{{ data.icon }}</mat-icon>
-        <span class="sidenav-link-text" @fadeInOut *ngIf="collapsed">{{data.label}}</span>
-      </a>
-      <div *ngIf="collapsed && data.subitens && data.subitens.length > 0">
-        <app-sublevel-menu
-          [data]="data"
-          [collapsed]="collapsed"
-          [multiple]="multiple"
-          [expanded]="data.expanded"
-        ></app-sublevel-menu>
-      </div>
-    </li>
-  </ul>
+  <div class="scrollwrap scrollwrap_delayed">
+    <ul class="sidenav-nav">
+      <li class="sidenav-nav-item" *ngFor="let data of navData">
+        <a class="sidenav-nav-link" (click)="handleClick(data)"
+          *ngIf="data.subitens && data.subitens.length > 0"
+          [ngClass]="getActiveClass(data)"
+        >
+          <mat-icon class="sidenav-link-icon">{{ data.icon }}</mat-icon>
+          <span class="sidenav-link-text" @fadeInOut *ngIf="collapsed">
+            {{data.label}}
+          </span>
+          <mat-icon *ngIf="data.subitens && collapsed" class="menu-collapse-icon">
+            {{!data.expanded ? 'chevron_right' : 'expand_more'}}
+          </mat-icon>
+        </a>
+        <a class="sidenav-nav-link"
+          *ngIf="!data.subitens || (data.subitens && data.subitens.length ===0)"
+          [routerLink]="[data.routerLink]"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: true }"
+          (click)="shrinkItems(data)"
+        >
+          <mat-icon class="sidenav-link-icon">{{ data.icon }}</mat-icon>
+          <span class="sidenav-link-text" @fadeInOut *ngIf="collapsed">{{data.label}}</span>
+        </a>
+        <div *ngIf="collapsed && data.subitens && data.subitens.length > 0">
+          <app-sublevel-menu
+            [data]="data"
+            [collapsed]="collapsed"
+            [multiple]="multiple"
+            [expanded]="data.expanded"
+          ></app-sublevel-menu>
+        </div>
+      </li>
+    </ul>
+  </div>
 </div>

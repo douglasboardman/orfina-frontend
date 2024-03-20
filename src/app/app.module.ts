@@ -17,6 +17,8 @@ import { BodyComponent } from './body/body.component';
 import { SidenavComponent } from './sidenav/sidenav.component';
 import { LancamentosComponent } from './lancamentos/lancamentos.component';
 import { SublevelMenuComponent } from './sidenav/sublevel-menu.component';
+import { PagamentosRegularesComponent } from './pagamentos-regulares/pagamentos-regulares.component';
+import { FontesRegularesComponent } from './fontes-regulares/fontes-regulares.component';
 
 @NgModule({
   declarations: [
@@ -25,7 +27,9 @@ import { SublevelMenuComponent } from './sidenav/sublevel-menu.component';
     BodyComponent,
     SidenavComponent,
     LancamentosComponent,
-    SublevelMenuComponent
+    SublevelMenuComponent,
+    PagamentosRegularesComponent,
+    FontesRegularesComponent
   ],
   imports: [
     BrowserModule,

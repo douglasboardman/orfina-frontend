@@ -1,7 +1,7 @@
 @import '../../styles.scss';
 
 .sidenav {
-    background: $primary;
+    background: $var-darker2;
     transition: all .5s ease;
     position: fixed;
     z-index: 1;
@@ -33,18 +33,18 @@
             margin-left: 1.5rem;
             font-size: 24px;
             font-weight: 700;
-            color: #fff;
+            color: $bright;
         }
 
         .btn-close {
             margin-left: auto;
             cursor: pointer;
-            width: 2rem;
-            height: 2rem;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background-color: transparent;
             border: none;
-            color: #fff;
+            color: $bright;
             font-size: 24px;
         }
     }
@@ -61,7 +61,6 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: calc(100% - 3.65rem);
     cursor: pointer;
 
     .sidenav-nav-item {
@@ -72,7 +71,7 @@
             display: flex;
             align-items: center;
             height: 3rem;
-            color: #f3f3f3;
+            color: $alt-bright;
             text-decoration: none;
             border-radius: 3px;
             transition: all .3s ease;
@@ -85,31 +84,36 @@
                 text-align: center;
             }
 
-            .sidenav-link-text {
-                margin-left: 1.5rem;
-            }
+            // .sidenav-link-text {
+            //     margin-left: 1.5rem;
+            // }
         }
     }
 
     .sidenav-nav-link:hover {
-        background-color: #fff;
+        background-color: $bright;
         
         .sidenav-link-text,
         .sidenav-link-icon,
         .menu-collapse-icon {
-            color: #000;
+            color: $dark;
         }
     }
 }
 
 .active {
-    background-color: #fff;
+    background-color: $bright;
     
     .menu-collapse-icon,
     .sidenav-link-icon,
     .sidenav-link-text {
-        color: #000;
+        color: $dark;
     }
+}
+
+.active-sublevel {
+    color: $var-brighter1 !important;
+    //opacity: 1 !important;
 }
 
 .menu-collapse-icon {
@@ -118,7 +122,7 @@
     min-width: 2rem;
     margin: auto 0.5rem auto auto;
     text-align: center;
-    color: #f3f3f3;
+    color: $alt-bright;
 }
 
 .sublevel-nav {
@@ -130,10 +134,14 @@
             display: flex;
             align-items: center;
             height: 3rem;
-            color: $primary-rel4;
+            color: $alt-bright;
             text-decoration: none;
             border-radius: 0.625rem;
             transition: all .3s ease;
+
+            .menu-collapse-icon {
+                color: $alt-bright;
+            }
 
             .sublevel-link-icon {
                 font-size: 14px;
@@ -146,13 +154,53 @@
             }
 
             .sublevel-link-text {
-                margin-left: 0.8rem;
+                //margin-left: 0.8rem;
+                margin-left: 2.5rem;
                 height: 20px;
             }
         }
 
         .sublevel-nav-link:hover {
-            color: #f3f3f3;
+            color: $var-brighter1;
+
+            .menu-collapse-icon {
+                color: $var-brighter1;
+            }
         }
     }
+}
+
+//scrollbar and visibility on hover and focus
+
+.scrollwrap {
+    overflow-y: auto;
+    visibility: hidden;
+    height: calc(100% - 3.65rem);
+}
+
+.sidenav-nav,
+.scrollwrap:hover,
+.scrollwrap:focus {
+    visibility: visible;
+}
+
+.scrollwrap_delayed {
+    transition: visibility 0.5s 0.2s;
+}
+
+.scrollwrap_delayed:hover {
+    transition: visibility 0.2s 0.2s;
+}
+
+// works on chrome, edge and safari
+
+.scrollwrap::-webkit-scrollbar-thumb {
+    background-color: #556268;
+    border-radius: 20px;
+}
+
+// works on firefox
+.scrollwrap {
+    scrollbar-width: thin;
+    scrollbar-color: #556268 transparent;
 }

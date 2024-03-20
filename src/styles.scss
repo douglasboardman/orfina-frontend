@@ -5,12 +5,14 @@
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
-$primary: #364768;
-$primary-rel1: #061a40;
-$primary-rel2: #232e43;
-$primary-rel3: #0353a4;
-$primary-rel4: #006daa;
-$primary-rel5: #b9d6f2;
+$primary: #49a078;
+$var-darker1: #216869;
+$var-darker2: #1f2421;
+$var-brighter1: #9cc5a1;
+$var-brighter2: #dce1de;
+$bright: #fff;
+$alt-bright: #f3f3f3;
+$dark: #000;
 
 * {
     margin: 0;

@@ -55,16 +55,16 @@ export const menuData: INavbarData[] = [
         label: 'Eventos Regulares',
         subitens: [
             {
-                routerLink: 'pagamentos-regulares',
+                routerLink: '#',
                 label: 'Pag. Regulares',
                 subitens: [
                     {
-                        routerLink: 'criar-pag-regular',
+                        routerLink: 'pagamentos-regulares',
                         label: 'Criar novo'
                     },
                     {
                         routerLink: 'listar-pag-regulares',
-                        label: 'consultar'
+                        label: 'Consultar'
                     }
                 ]
             },
