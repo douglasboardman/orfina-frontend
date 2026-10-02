@@ -3,7 +3,7 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { ApiService } from './api.service';
-import { Account, AccountType, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, InstallmentPurchase, Overview, RecurringRule, Theme, Transaction, TransactionFilters, TransactionType } from './models';
+import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from './models';
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from './financial-brands';
 import { EmptyStateComponent } from './ui/empty-state.component';
 import { FeedbackBannerComponent } from './ui/feedback-banner.component';
@@ -28,6 +28,11 @@ export class AppComponent implements OnInit {
   selectedCard?: Card;
   recurringRules: RecurringRule[] = [];
   installmentPurchases: InstallmentPurchase[] = [];
+  budgetSummary?: BudgetSummary;
+  savingsGoals: SavingsGoal[] = [];
+  transfers: AccountTransfer[] = [];
+  importBatches: ImportBatch[] = [];
+  importPreview?: ImportBatch;
   categories: Category[] = [];
   transactions: Transaction[] = [];
   transactionTotal = 0;
@@ -39,7 +44,7 @@ export class AppComponent implements OnInit {
   sidebarOpen = false;
   userMenuOpen = false;
   householdManagementOpen = false;
-  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' = 'overview';
+  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports' = 'overview';
   readonly brazilianBanks = brazilianBanks;
   readonly cardNetworks = cardNetworks;
   householdName = '';
@@ -89,6 +94,9 @@ export class AppComponent implements OnInit {
   cardForm: { name: string; issuerName: string; issuerLogoUrl: string; network: CardNetwork; lastFour: string; creditLimit: number | null; closingDay: number; dueDay: number } = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 };
   recurringForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; startOn: string; endOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
   installmentForm: { cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string } = { cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+  budgetMonth = new Date().toISOString().slice(0, 7);
+  budgetForm: { categoryId: string; limitAmount: number; notes: string } = { categoryId: '', limitAmount: 0, notes: '' };
+  goalForm: { name: string; targetAmount: number; targetDate: string; color: string; icon: string } = { name: '', targetAmount: 0, targetDate: '', color: '#5B5BD6', icon: 'flag' };
   categoryForm: { name: string; type: TransactionType; color: string; icon: string } = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: 'sell' };
   subcategoryForm: { categoryId: string; name: string } = { categoryId: '', name: '' };
   editingAccountId?: string;
@@ -97,7 +105,9 @@ export class AppComponent implements OnInit {
   editingSubcategoryId?: string;
   editingTransactionId?: string;
   transactionForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
-  transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined };
+  transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
+  transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
+  importForm: { accountId: string; file?: File } = { accountId: '' };
 
   constructor(private readonly api: ApiService, private readonly changeDetector: ChangeDetectorRef, private readonly router: Router) {}
 
@@ -130,6 +140,7 @@ export class AppComponent implements OnInit {
   }
   get expenseCategories() { return this.categories.filter((category) => category.type === 'EXPENSE'); }
   get incomeCategories() { return this.categories.filter((category) => category.type === 'INCOME'); }
+  get budgetCategories() { return this.categories.filter((category) => category.type === 'EXPENSE' && category.isActive); }
   get displayedTransactions() { return this.activeView === 'transactions' ? this.transactions : this.overview?.recentTransactions ?? []; }
   get transactionPageCount() { return Math.max(1, Math.ceil(this.transactionTotal / this.transactionPageSize)); }
   get filterSubcategories() {
@@ -138,9 +149,13 @@ export class AppComponent implements OnInit {
   }
   get displayedAccounts() { return this.activeView === 'accounts' ? this.accounts : this.overview?.accounts ?? []; }
   get viewTitle() {
+    if (this.activeView === 'imports') return 'Importações';
+    if (this.activeView === 'transfers') return 'Transferências';
     if (this.activeView === 'accounts') return 'Contas';
     if (this.activeView === 'cards') return 'Cartões';
     if (this.activeView === 'recurrences') return 'Recorrências';
+    if (this.activeView === 'budget') return 'Orçamento';
+    if (this.activeView === 'goals') return 'Metas';
     if (this.activeView === 'categories') return 'Categorias';
     if (this.activeView === 'transactions') return 'Lançamentos';
     return `Olá, família ${this.activeHousehold?.name ?? ''}`;
@@ -170,11 +185,11 @@ export class AppComponent implements OnInit {
     this.render();
   }
 
-  selectView(view: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences') {
+  selectView(view: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports') {
     this.activeView = view;
     this.sidebarOpen = false;
     this.userMenuOpen = false;
-    void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', cards: '/cartoes', categories: '/categorias', transactions: '/lancamentos', recurrences: '/recorrencias' }[view]);
+    void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', cards: '/cartoes', categories: '/categorias', transactions: '/lancamentos', recurrences: '/recorrencias', budget: '/orcamento', goals: '/metas', transfers: '/transferencias', imports: '/importacoes' }[view]);
     this.render();
   }
 
@@ -416,6 +431,55 @@ export class AppComponent implements OnInit {
     await this.run(async () => { await this.api.cancelFutureInstallments(this.activeHousehold!.id, purchase.id); this.installmentPurchases = await this.api.installmentPurchases(this.activeHousehold!.id); await this.loadDashboard(); });
   }
 
+  async loadBudget() {
+    if (!this.activeHousehold) return;
+    this.budgetSummary = await this.api.budgetSummary(this.activeHousehold.id, this.budgetMonth);
+  }
+
+  async changeBudgetMonth() { await this.run(() => this.loadBudget()); }
+  async saveBudget() {
+    if (!this.activeHousehold || !this.budgetForm.categoryId) return;
+    await this.run(async () => {
+      await this.api.upsertBudget(this.activeHousehold!.id, this.budgetMonth, { categoryId: this.budgetForm.categoryId, limitAmount: Math.round(this.budgetForm.limitAmount * 100), notes: this.budgetForm.notes || undefined });
+      this.budgetForm = { categoryId: '', limitAmount: 0, notes: '' };
+      await this.loadBudget();
+    });
+  }
+  async deleteBudget(categoryId: string) {
+    if (!this.activeHousehold || !confirm('Remover este limite do mês?')) return;
+    await this.run(async () => { await this.api.deleteBudget(this.activeHousehold!.id, this.budgetMonth, categoryId); await this.loadBudget(); });
+  }
+  async copyPreviousBudget() {
+    if (!this.activeHousehold) return;
+    const [year, month] = this.budgetMonth.split('-').map(Number);
+    const sourceMonth = new Date(Date.UTC(year, month - 2, 1)).toISOString().slice(0, 7);
+    await this.run(async () => { await this.api.copyBudgets(this.activeHousehold!.id, sourceMonth, this.budgetMonth); await this.loadBudget(); });
+  }
+  async setBudgetClosed(closed: boolean) {
+    if (!this.activeHousehold || !confirm(closed ? 'Encerrar este orçamento? O snapshot ficará somente leitura.' : 'Reabrir este orçamento?')) return;
+    await this.run(async () => { await this.api.setBudgetMonthClosed(this.activeHousehold!.id, this.budgetMonth, closed); await this.loadBudget(); });
+  }
+  async saveGoal() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      await this.api.createGoal(this.activeHousehold!.id, { ...this.goalForm, targetAmount: Math.round(this.goalForm.targetAmount * 100), targetDate: this.goalForm.targetDate || undefined, icon: this.goalForm.icon || undefined });
+      this.goalForm = { name: '', targetAmount: 0, targetDate: '', color: '#5B5BD6', icon: 'flag' };
+      this.savingsGoals = await this.api.goals(this.activeHousehold!.id);
+    });
+  }
+  async contributeToGoal(goal: SavingsGoal) {
+    if (!this.activeHousehold) return;
+    const raw = prompt(`Contribuição para ${goal.name} (R$):`);
+    if (!raw) return;
+    const amount = Number(raw.replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) { this.error = 'Informe uma contribuição válida.'; return; }
+    await this.run(async () => { await this.api.contributeToGoal(this.activeHousehold!.id, goal.id, { amount: Math.round(amount * 100), occurredOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() }); this.savingsGoals = await this.api.goals(this.activeHousehold!.id); });
+  }
+  async setGoalStatus(goal: SavingsGoal, status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED') {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.setGoalStatus(this.activeHousehold!.id, goal.id, status); this.savingsGoals = await this.api.goals(this.activeHousehold!.id); });
+  }
+
   async setCardStatus(card: Card, isActive: boolean) {
     if (!this.activeHousehold || !confirm(`${isActive ? 'Reativar' : 'Arquivar'} o cartão ${card.name}?`)) return;
     await this.run(async () => { await this.api.setCardStatus(this.activeHousehold!.id, card.id, isActive); this.cards = await this.api.cards(this.activeHousehold!.id); });
@@ -541,17 +605,62 @@ export class AppComponent implements OnInit {
     });
   }
 
+  async setTransactionStatus(transaction: Transaction, status: TransactionStatus) {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.setTransactionStatus(this.activeHousehold!.id, transaction.id, status); await this.loadDashboard(); });
+  }
+
+  async saveTransfer() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      await this.api.createTransfer(this.activeHousehold!.id, { ...this.transferForm, amount: Math.round(this.transferForm.amount * 100), description: this.transferForm.description || undefined });
+      this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
+      await this.loadDashboard();
+    });
+  }
+
+  async setTransferStatus(transfer: AccountTransfer, status: 'PENDING' | 'POSTED' | 'DISCARDED') {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.setTransferStatus(this.activeHousehold!.id, transfer.id, status); await this.loadDashboard(); });
+  }
+
+  onImportFile(event: Event) { this.importForm.file = (event.target as HTMLInputElement).files?.[0]; }
+
+  async previewImport() {
+    if (!this.activeHousehold || !this.importForm.file) return;
+    await this.run(async () => {
+      const contentBase64 = await this.readAsBase64(this.importForm.file!);
+      this.importPreview = await this.api.previewImport(this.activeHousehold!.id, { fileName: this.importForm.file!.name, contentBase64, mapping: {}, accountId: this.importForm.accountId || undefined });
+      this.importBatches = await this.api.importBatches(this.activeHousehold!.id);
+    });
+  }
+
+  async commitImport(createMissingCategories: boolean) {
+    if (!this.activeHousehold || !this.importPreview) return;
+    await this.run(async () => { await this.api.commitImport(this.activeHousehold!.id, this.importPreview!.id, createMissingCategories); this.importPreview = undefined; this.importBatches = await this.api.importBatches(this.activeHousehold!.id); await this.loadDashboard(); });
+  }
+
+  async cancelImport(batch: ImportBatch) {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.cancelImport(this.activeHousehold!.id, batch.id); this.importBatches = await this.api.importBatches(this.activeHousehold!.id); if (this.importPreview?.id === batch.id) this.importPreview = undefined; });
+  }
+
   private async loadDashboard() {
     if (!this.activeHousehold) return;
-    const [overview, accounts, cards, categories, recurringRules, installmentPurchases] = await Promise.all([this.api.overview(this.activeHousehold.id), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id)]);
+    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.budgetMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
     this.overview = overview;
     this.accounts = accounts;
     this.cards = cards;
     this.categories = categories;
     this.recurringRules = recurringRules;
     this.installmentPurchases = installmentPurchases;
+    this.budgetSummary = budgetSummary;
+    this.savingsGoals = savingsGoals;
+    this.transfers = transfers;
+    this.importBatches = importBatches;
     await this.loadTransactions();
     if (!this.transactionForm.accountId) this.transactionForm.accountId = this.overview.accounts[0]?.id ?? '';
+    if (!this.importForm.accountId) this.importForm.accountId = this.overview.accounts[0]?.id ?? '';
   }
 
   private async loadTransactions() {
@@ -590,8 +699,21 @@ export class AppComponent implements OnInit {
       : path === '/categorias' ? 'categories'
       : path === '/lancamentos' ? 'transactions'
           : path === '/recorrencias' ? 'recurrences'
+          : path === '/orcamento' ? 'budget'
+          : path === '/metas' ? 'goals'
+          : path === '/transferencias' ? 'transfers'
+          : path === '/importacoes' ? 'imports'
           : 'overview';
     this.activeView = view;
     this.render();
+  }
+
+  private readAsBase64(file: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Não foi possível ler o arquivo.'));
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '');
+      reader.readAsDataURL(file);
+    });
   }
 }

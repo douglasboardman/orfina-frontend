@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Account, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, InstallmentPurchase, Overview, RecurringRule, RecurringRuleStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionType } from './models';
+import { Account, AccountTransfer, AccountTransferStatus, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringRule, RecurringRuleStatus, SavingsGoal, SavingsGoalStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionStatus, TransactionType } from './models';
 import { CardNetwork } from './financial-brands';
 import { environment } from '../environments/environment';
 
@@ -37,6 +37,15 @@ export class ApiService {
   async recurringRules(id: string): Promise<RecurringRule[]> { return this.request(`/households/${id}/recurring-rules`); }
   async createRecurringRule(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; notes?: string; startOn: string; endOn?: string }): Promise<RecurringRule> { return this.request(`/households/${id}/recurring-rules`, { method: 'POST', body: JSON.stringify(data) }); }
   async setRecurringRuleStatus(id: string, ruleId: string, status: RecurringRuleStatus): Promise<RecurringRule> { return this.request(`/households/${id}/recurring-rules/${ruleId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+  async budgetSummary(id: string, month: string): Promise<BudgetSummary> { return this.request(`/households/${id}/budgets?month=${encodeURIComponent(month)}`); }
+  async upsertBudget(id: string, month: string, data: { categoryId: string; limitAmount: number; notes?: string }): Promise<void> { await this.request(`/households/${id}/budgets/${month}`, { method: 'PUT', body: JSON.stringify(data) }); }
+  async deleteBudget(id: string, month: string, categoryId: string): Promise<void> { await this.request(`/households/${id}/budgets/${month}/${categoryId}`, { method: 'DELETE' }); }
+  async copyBudgets(id: string, sourceMonth: string, targetMonth: string): Promise<void> { await this.request(`/households/${id}/budgets/copy`, { method: 'POST', body: JSON.stringify({ sourceMonth, targetMonth }) }); }
+  async setBudgetMonthClosed(id: string, month: string, closed: boolean): Promise<void> { await this.request(`/households/${id}/budgets/${month}/${closed ? 'close' : 'reopen'}`, { method: 'POST' }); }
+  async goals(id: string): Promise<SavingsGoal[]> { return this.request(`/households/${id}/goals`); }
+  async createGoal(id: string, data: { name: string; targetAmount: number; targetDate?: string; color: string; icon?: string }): Promise<SavingsGoal> { return this.request(`/households/${id}/goals`, { method: 'POST', body: JSON.stringify(data) }); }
+  async setGoalStatus(id: string, goalId: string, status: SavingsGoalStatus): Promise<SavingsGoal> { return this.request(`/households/${id}/goals/${goalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+  async contributeToGoal(id: string, goalId: string, data: { amount: number; occurredOn: string; notes?: string; idempotencyKey: string }): Promise<void> { await this.request(`/households/${id}/goals/${goalId}/contributions`, { method: 'POST', body: JSON.stringify(data) }); }
   async createCategory(id: string, data: { name: string; type: TransactionType; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateCategory(id: string, categoryId: string, data: { name: string; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async setCategoryStatus(id: string, categoryId: string, isActive: boolean): Promise<Category> { return this.request(`/households/${id}/categories/${categoryId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
@@ -52,6 +61,14 @@ export class ApiService {
   async createTransaction(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateTransaction(id: string, transactionId: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async deleteTransaction(id: string, transactionId: string): Promise<void> { await this.request(`/households/${id}/transactions/${transactionId}`, { method: 'DELETE' }); }
+  async setTransactionStatus(id: string, transactionId: string, status: TransactionStatus): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+  async transfers(id: string): Promise<AccountTransfer[]> { return this.request(`/households/${id}/transfers`); }
+  async createTransfer(id: string, data: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description?: string; status?: AccountTransferStatus }): Promise<AccountTransfer> { return this.request(`/households/${id}/transfers`, { method: 'POST', body: JSON.stringify(data) }); }
+  async setTransferStatus(id: string, transferId: string, status: AccountTransferStatus): Promise<AccountTransfer> { return this.request(`/households/${id}/transfers/${transferId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+  async importBatches(id: string): Promise<ImportBatch[]> { return this.request(`/households/${id}/imports`); }
+  async previewImport(id: string, data: { fileName: string; contentBase64: string; mapping: Record<string, string>; accountId?: string }): Promise<ImportBatch> { return this.request(`/households/${id}/imports`, { method: 'POST', body: JSON.stringify(data) }); }
+  async commitImport(id: string, batchId: string, createMissingCategories: boolean): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/commit`, { method: 'POST', body: JSON.stringify({ createMissingCategories }) }); }
+  async cancelImport(id: string, batchId: string): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/cancel`, { method: 'POST' }); }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = init.body === undefined ? {} : { 'Content-Type': 'application/json' };
