@@ -6,6 +6,8 @@ export const appRoutes: Routes = [
   { path: 'auth/callback', component: WorkspaceRouteComponent, data: { view: 'overview' } },
   { path: 'visao-geral', component: WorkspaceRouteComponent, data: { view: 'overview' } },
   { path: 'contas', component: WorkspaceRouteComponent, data: { view: 'accounts' } },
+  { path: 'cartoes', component: WorkspaceRouteComponent, data: { view: 'cards' } },
+  { path: 'recorrencias', component: WorkspaceRouteComponent, data: { view: 'recurrences' } },
   { path: 'lancamentos', component: WorkspaceRouteComponent, data: { view: 'transactions' } },
   { path: 'categorias', component: WorkspaceRouteComponent, data: { view: 'categories' } },
   { path: '**', redirectTo: 'visao-geral' },

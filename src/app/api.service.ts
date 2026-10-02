@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
-import { Account, Category, Household, HouseholdInvitation, HouseholdMember, Overview, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionType } from './models';
+import { Account, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, InstallmentPurchase, Overview, RecurringRule, RecurringRuleStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionType } from './models';
+import { CardNetwork } from './financial-brands';
 import { environment } from '../environments/environment';
 
 const API_URL = (globalThis as typeof globalThis & { ORFINA_API_URL?: string }).ORFINA_API_URL ?? environment.apiUrl;
@@ -20,9 +21,22 @@ export class ApiService {
   async overview(id: string): Promise<Overview> { return this.request(`/households/${id}/overview`); }
   async accounts(id: string): Promise<Account[]> { return this.request(`/households/${id}/accounts`); }
   async categories(id: string): Promise<Category[]> { return this.request(`/households/${id}/categories`); }
-  async createAccount(id: string, data: { name: string; type: string; bankName?: string; initialBalance: number }): Promise<Account> { return this.request(`/households/${id}/accounts`, { method: 'POST', body: JSON.stringify(data) }); }
-  async updateAccount(id: string, accountId: string, data: { name: string; type: string; bankName?: string; initialBalance: number }): Promise<Account> { return this.request(`/households/${id}/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async createAccount(id: string, data: { name: string; type: string; bankName?: string; bankLogoUrl?: string; initialBalance: number }): Promise<Account> { return this.request(`/households/${id}/accounts`, { method: 'POST', body: JSON.stringify(data) }); }
+  async updateAccount(id: string, accountId: string, data: { name: string; type: string; bankName?: string; bankLogoUrl?: string; initialBalance: number }): Promise<Account> { return this.request(`/households/${id}/accounts/${accountId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async setAccountStatus(id: string, accountId: string, isActive: boolean): Promise<Account> { return this.request(`/households/${id}/accounts/${accountId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
+  async cards(id: string): Promise<Card[]> { return this.request(`/households/${id}/cards`); }
+  async createCard(id: string, data: { name: string; issuerName?: string; issuerLogoUrl?: string; network: CardNetwork; lastFour?: string; creditLimit?: number; closingDay: number; dueDay: number }): Promise<Card> { return this.request(`/households/${id}/cards`, { method: 'POST', body: JSON.stringify(data) }); }
+  async updateCard(id: string, cardId: string, data: { name?: string; issuerName?: string; issuerLogoUrl?: string; network?: CardNetwork; lastFour?: string; creditLimit?: number; closingDay?: number; dueDay?: number }): Promise<Card> { return this.request(`/households/${id}/cards/${cardId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async setCardStatus(id: string, cardId: string, isActive: boolean): Promise<Card> { return this.request(`/households/${id}/cards/${cardId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
+  async cardStatements(id: string, cardId: string): Promise<CardStatement[]> { return this.request(`/households/${id}/cards/${cardId}/statements`); }
+  async closeStatement(id: string, statementId: string): Promise<CardStatement> { return this.request(`/households/${id}/statements/${statementId}/close`, { method: 'POST' }); }
+  async payStatement(id: string, statementId: string, data: { accountId: string; amount: number; paidOn: string; idempotencyKey: string }): Promise<void> { await this.request(`/households/${id}/statements/${statementId}/payments`, { method: 'POST', body: JSON.stringify(data) }); }
+  async createInstallmentPurchase(id: string, data: { cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string; notes?: string }): Promise<void> { await this.request(`/households/${id}/installment-purchases`, { method: 'POST', body: JSON.stringify(data) }); }
+  async installmentPurchases(id: string): Promise<InstallmentPurchase[]> { return this.request(`/households/${id}/installment-purchases`); }
+  async cancelFutureInstallments(id: string, purchaseId: string): Promise<void> { await this.request(`/households/${id}/installment-purchases/${purchaseId}/cancel-future`, { method: 'POST' }); }
+  async recurringRules(id: string): Promise<RecurringRule[]> { return this.request(`/households/${id}/recurring-rules`); }
+  async createRecurringRule(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; notes?: string; startOn: string; endOn?: string }): Promise<RecurringRule> { return this.request(`/households/${id}/recurring-rules`, { method: 'POST', body: JSON.stringify(data) }); }
+  async setRecurringRuleStatus(id: string, ruleId: string, status: RecurringRuleStatus): Promise<RecurringRule> { return this.request(`/households/${id}/recurring-rules/${ruleId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
   async createCategory(id: string, data: { name: string; type: TransactionType; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateCategory(id: string, categoryId: string, data: { name: string; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async setCategoryStatus(id: string, categoryId: string, isActive: boolean): Promise<Category> { return this.request(`/households/${id}/categories/${categoryId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
@@ -35,8 +49,8 @@ export class ApiService {
     const suffix = query.size ? `?${query.toString()}` : '';
     return this.request(`/households/${id}/transactions${suffix}`);
   }
-  async createTransaction(id: string, data: { accountId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions`, { method: 'POST', body: JSON.stringify(data) }); }
-  async updateTransaction(id: string, transactionId: string, data: { accountId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async createTransaction(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions`, { method: 'POST', body: JSON.stringify(data) }); }
+  async updateTransaction(id: string, transactionId: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async deleteTransaction(id: string, transactionId: string): Promise<void> { await this.request(`/households/${id}/transactions/${transactionId}`, { method: 'DELETE' }); }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {

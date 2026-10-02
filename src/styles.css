@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('https://fonts.gstatic.com/s/materialsymbolsoutlined/v375/kJF1BvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzByHX9rA6RzaxHMPdY43zj-jCxv3fzvRNU22ZXGJpEpjC_1v-p_4MrImHCIJIZrDCvHOem.ttf') format('truetype');
+}
+
 :root { color-scheme: light; --bg: #f7f7fb; --surface: #fff; --surface-alt: #f0f0f7; --ink: #171722; --muted: #747485; --line: #e3e3ec; --brand: #5b5bd6; --brand-soft: #edecff; --success: #138466; }
 :root[data-theme='dark'] { color-scheme: dark; --bg: #101017; --surface: #191922; --surface-alt: #242431; --ink: #f7f7fc; --muted: #aaaaba; --line: #30303e; --brand: #a9a7ff; --brand-soft: #292845; --success: #4acba9; }
 * { box-sizing: border-box; }

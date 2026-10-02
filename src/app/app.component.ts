@@ -3,7 +3,8 @@ import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { ApiService } from './api.service';
-import { Account, AccountType, Category, Household, HouseholdInvitation, HouseholdMember, Overview, Theme, Transaction, TransactionFilters, TransactionType } from './models';
+import { Account, AccountType, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, InstallmentPurchase, Overview, RecurringRule, Theme, Transaction, TransactionFilters, TransactionType } from './models';
+import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from './financial-brands';
 import { EmptyStateComponent } from './ui/empty-state.component';
 import { FeedbackBannerComponent } from './ui/feedback-banner.component';
 
@@ -22,6 +23,11 @@ export class AppComponent implements OnInit {
   activeHousehold?: Household;
   overview?: Overview;
   accounts: Account[] = [];
+  cards: Card[] = [];
+  cardStatements: CardStatement[] = [];
+  selectedCard?: Card;
+  recurringRules: RecurringRule[] = [];
+  installmentPurchases: InstallmentPurchase[] = [];
   categories: Category[] = [];
   transactions: Transaction[] = [];
   transactionTotal = 0;
@@ -33,18 +39,64 @@ export class AppComponent implements OnInit {
   sidebarOpen = false;
   userMenuOpen = false;
   householdManagementOpen = false;
-  activeView: 'overview' | 'accounts' | 'categories' | 'transactions' = 'overview';
+  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' = 'overview';
+  readonly brazilianBanks = brazilianBanks;
+  readonly cardNetworks = cardNetworks;
   householdName = '';
-  readonly categoryIcons = ['🏷️', '🛒', '🍽️', '🏠', '🚗', '🩺', '📚', '🎓', '🎮', '✈️', '💼', '💰', '📈', '🎁'];
+  readonly categoryIcons = [
+    { value: 'sell', label: 'Etiqueta' },
+    { value: 'payments', label: 'Dinheiro em espécie' },
+    { value: 'account_balance', label: 'Banco' },
+    { value: 'account_balance_wallet', label: 'Carteira' },
+    { value: 'credit_card', label: 'Cartão' },
+    { value: 'savings', label: 'Poupança' },
+    { value: 'trending_up', label: 'Investimento' },
+    { value: 'paid', label: 'Recebimento' },
+    { value: 'swap_horiz', label: 'Transferência' },
+    { value: 'receipt_long', label: 'Recibo' },
+    { value: 'shopping_cart', label: 'Mercado' },
+    { value: 'shopping_bag', label: 'Aquisições' },
+    { value: 'restaurant', label: 'Alimentação' },
+    { value: 'home', label: 'Moradia' },
+    { value: 'directions_car', label: 'Transporte' },
+    { value: 'directions_bus', label: 'Ônibus e metrô' },
+    { value: 'local_gas_station', label: 'Combustível' },
+    { value: 'medical_services', label: 'Saúde' },
+    { value: 'ecg_heart', label: 'Coração e saúde' },
+    { value: 'school', label: 'Educação' },
+    { value: 'menu_book', label: 'Livro aberto' },
+    { value: 'work', label: 'Trabalho' },
+    { value: 'flight', label: 'Viagem' },
+    { value: 'celebration', label: 'Lazer' },
+    { value: 'beach_access', label: 'Praia e lazer' },
+    { value: 'cake', label: 'Celebração' },
+    { value: 'card_giftcard', label: 'Presente' },
+    { value: 'star_outline', label: 'Prêmio' },
+    { value: 'real_estate_agent', label: 'Aluguel' },
+    { value: 'handshake', label: 'Empréstimo' },
+    { value: 'phone_iphone', label: 'Telefone' },
+    { value: 'wifi', label: 'Internet' },
+    { value: 'bolt', label: 'Energia' },
+    { value: 'water_drop', label: 'Água' },
+    { value: 'pets', label: 'Pets' },
+    { value: 'child_care', label: 'Filhos' },
+    { value: 'construction', label: 'Construção e manutenção' },
+    { value: 'church', label: 'Igreja' },
+    { value: 'more_horiz', label: 'Outros' },
+  ] as const;
   invitationForm: { email: string; role: 'MEMBER' | 'VIEWER' } = { email: '', role: 'MEMBER' };
-  accountForm: { name: string; type: AccountType; bankName: string; initialBalance: number } = { name: '', type: 'CHECKING', bankName: '', initialBalance: 0 };
-  categoryForm: { name: string; type: TransactionType; color: string; icon: string } = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: '🏷️' };
+  accountForm: { name: string; type: AccountType; bankName: string; bankLogoUrl: string; initialBalance: number } = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
+  cardForm: { name: string; issuerName: string; issuerLogoUrl: string; network: CardNetwork; lastFour: string; creditLimit: number | null; closingDay: number; dueDay: number } = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 };
+  recurringForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; startOn: string; endOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+  installmentForm: { cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string } = { cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+  categoryForm: { name: string; type: TransactionType; color: string; icon: string } = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: 'sell' };
   subcategoryForm: { categoryId: string; name: string } = { categoryId: '', name: '' };
   editingAccountId?: string;
+  editingCardId?: string;
   editingCategoryId?: string;
   editingSubcategoryId?: string;
   editingTransactionId?: string;
-  transactionForm: { accountId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { accountId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
+  transactionForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
   transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined };
 
   constructor(private readonly api: ApiService, private readonly changeDetector: ChangeDetectorRef, private readonly router: Router) {}
@@ -71,6 +123,11 @@ export class AppComponent implements OnInit {
         .filter((subcategory) => subcategory.isActive)
         .map((subcategory) => ({ ...subcategory, category })));
   }
+  get recurringSubcategories() {
+    return this.categories
+      .filter((category) => category.isActive && category.type === this.recurringForm.type)
+      .flatMap((category) => category.subcategories.filter((subcategory) => subcategory.isActive).map((subcategory) => ({ ...subcategory, category })));
+  }
   get expenseCategories() { return this.categories.filter((category) => category.type === 'EXPENSE'); }
   get incomeCategories() { return this.categories.filter((category) => category.type === 'INCOME'); }
   get displayedTransactions() { return this.activeView === 'transactions' ? this.transactions : this.overview?.recentTransactions ?? []; }
@@ -82,6 +139,8 @@ export class AppComponent implements OnInit {
   get displayedAccounts() { return this.activeView === 'accounts' ? this.accounts : this.overview?.accounts ?? []; }
   get viewTitle() {
     if (this.activeView === 'accounts') return 'Contas';
+    if (this.activeView === 'cards') return 'Cartões';
+    if (this.activeView === 'recurrences') return 'Recorrências';
     if (this.activeView === 'categories') return 'Categorias';
     if (this.activeView === 'transactions') return 'Lançamentos';
     return `Olá, família ${this.activeHousehold?.name ?? ''}`;
@@ -91,6 +150,8 @@ export class AppComponent implements OnInit {
     return this.currentUser?.name || 'Minha conta';
   }
   get userInitial() { return this.userName.slice(0, 1).toUpperCase(); }
+  categoryIconLabel(icon: string) { return this.categoryIcons.find((item) => item.value === icon)?.label ?? icon; }
+  bankLogoUrl(bankName?: string, fallback?: string) { return bankLogoUrlFor(bankName, fallback); }
 
   switchTheme() {
     this.theme = this.theme === 'dark' ? 'light' : 'dark';
@@ -109,11 +170,11 @@ export class AppComponent implements OnInit {
     this.render();
   }
 
-  selectView(view: 'overview' | 'accounts' | 'categories' | 'transactions') {
+  selectView(view: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences') {
     this.activeView = view;
     this.sidebarOpen = false;
     this.userMenuOpen = false;
-    void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', categories: '/categorias', transactions: '/lancamentos' }[view]);
+    void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', cards: '/cartoes', categories: '/categorias', transactions: '/lancamentos', recurrences: '/recorrencias' }[view]);
     this.render();
   }
 
@@ -130,6 +191,7 @@ export class AppComponent implements OnInit {
       this.activeHousehold = undefined;
       this.overview = undefined;
       this.accounts = [];
+      this.cards = [];
       this.categories = [];
       this.transactions = [];
       this.transactionTotal = 0;
@@ -230,7 +292,7 @@ export class AppComponent implements OnInit {
   async saveAccount() {
     if (!this.activeHousehold) return;
     await this.run(async () => {
-      const data = { ...this.accountForm, bankName: this.accountForm.bankName || undefined, initialBalance: Math.round(this.accountForm.initialBalance * 100) };
+      const data = { ...this.accountForm, bankName: this.accountForm.bankName || undefined, bankLogoUrl: this.accountForm.bankLogoUrl || undefined, initialBalance: Math.round(this.accountForm.initialBalance * 100) };
       if (this.editingAccountId) await this.api.updateAccount(this.activeHousehold!.id, this.editingAccountId, data);
       else await this.api.createAccount(this.activeHousehold!.id, data);
       this.cancelAccountEdit();
@@ -240,7 +302,7 @@ export class AppComponent implements OnInit {
 
   editAccount(account: Account) {
     this.editingAccountId = account.id;
-    this.accountForm = { name: account.name, type: account.type, bankName: account.bankName ?? '', initialBalance: account.initialBalance / 100 };
+    this.accountForm = { name: account.name, type: account.type, bankName: account.bankName ?? '', bankLogoUrl: bankLogoUrlFor(account.bankName, account.bankLogoUrl) ?? '', initialBalance: account.initialBalance / 100 };
     this.render();
   }
 
@@ -252,7 +314,7 @@ export class AppComponent implements OnInit {
 
   cancelAccountEdit() {
     this.editingAccountId = undefined;
-    this.accountForm = { name: '', type: 'CHECKING', bankName: '', initialBalance: 0 };
+    this.accountForm = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
   }
 
   async setAccountStatus(account: Account, isActive: boolean) {
@@ -261,6 +323,102 @@ export class AppComponent implements OnInit {
       await this.api.setAccountStatus(this.activeHousehold!.id, account.id, isActive);
       await this.loadDashboard();
     });
+  }
+
+  selectBank(name: string) {
+    const bank = this.brazilianBanks.find((item) => item.name === name);
+    this.accountForm.bankName = name;
+    this.accountForm.bankLogoUrl = bank?.logoUrl ?? '';
+  }
+
+  selectCardIssuer(name: string) {
+    const bank = this.brazilianBanks.find((item) => item.name === name);
+    this.cardForm.issuerName = name;
+    this.cardForm.issuerLogoUrl = bank?.logoUrl ?? '';
+  }
+
+  async saveCard() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      const data = { ...this.cardForm, issuerName: this.cardForm.issuerName || undefined, issuerLogoUrl: this.cardForm.issuerLogoUrl || undefined, lastFour: this.cardForm.lastFour || undefined, creditLimit: this.cardForm.creditLimit === null ? undefined : Math.round(this.cardForm.creditLimit * 100) };
+      if (this.editingCardId) await this.api.updateCard(this.activeHousehold!.id, this.editingCardId, data);
+      else await this.api.createCard(this.activeHousehold!.id, data);
+      this.cancelCardEdit();
+      this.cards = await this.api.cards(this.activeHousehold!.id);
+    });
+  }
+
+  editCard(card: Card) {
+    this.editingCardId = card.id;
+    this.cardForm = { name: card.name, issuerName: card.issuerName ?? '', issuerLogoUrl: bankLogoUrlFor(card.issuerName, card.issuerLogoUrl) ?? '', network: card.network, lastFour: card.lastFour ?? '', creditLimit: card.creditLimit === undefined ? null : card.creditLimit / 100, closingDay: card.closingDay, dueDay: card.dueDay };
+    this.render();
+  }
+
+  cancelCardEdit() { this.editingCardId = undefined; this.cardForm = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 }; }
+
+  async selectCard(card: Card) {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { this.selectedCard = card; this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, card.id); });
+  }
+
+  async closeStatement(statement: CardStatement) {
+    if (!this.activeHousehold || !confirm('Fechar esta fatura? Ajustes posteriores deverão ser rastreáveis.')) return;
+    await this.run(async () => { await this.api.closeStatement(this.activeHousehold!.id, statement.id); if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id); });
+  }
+
+  async payStatement(statement: CardStatement) {
+    if (!this.activeHousehold) return;
+    const accountId = this.accounts.find((account) => account.isActive)?.id;
+    if (!accountId) { this.error = 'Cadastre uma conta ativa para pagar a fatura.'; return; }
+    const amountText = prompt('Valor do pagamento (R$):', ((statement.totalAmount - statement.payments.reduce((sum, payment) => sum + payment.amount, 0)) / 100).toFixed(2).replace('.', ','));
+    if (!amountText) return;
+    const amount = Number(amountText.replace(',', '.'));
+    if (!Number.isFinite(amount) || amount <= 0) { this.error = 'Informe um valor de pagamento válido.'; return; }
+    await this.run(async () => {
+      await this.api.payStatement(this.activeHousehold!.id, statement.id, { accountId, amount: Math.round(amount * 100), paidOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() });
+      if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id);
+      await this.loadDashboard();
+    });
+  }
+
+  onRecurringSourceChange() { this.recurringForm.accountId = ''; this.recurringForm.cardId = ''; }
+  onRecurringTypeChange() { this.recurringForm.subcategoryId = ''; }
+  async saveRecurringRule() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      const { sourceType, ...form } = this.recurringForm;
+      await this.api.createRecurringRule(this.activeHousehold!.id, { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, amount: Math.round(form.amount * 100), endOn: form.endOn || undefined });
+      this.recurringForm = { sourceType: 'ACCOUNT', accountId: this.accounts.find((account) => account.isActive)?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+      this.recurringRules = await this.api.recurringRules(this.activeHousehold!.id);
+    });
+  }
+  async setRecurringRuleStatus(rule: RecurringRule, status: 'ACTIVE' | 'PAUSED' | 'ENDED') {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.setRecurringRuleStatus(this.activeHousehold!.id, rule.id, status); this.recurringRules = await this.api.recurringRules(this.activeHousehold!.id); });
+  }
+
+  onInstallmentTypeChange() { this.installmentForm.subcategoryId = ''; }
+  get installmentSubcategories() {
+    return this.categories.filter((category) => category.isActive && category.type === this.installmentForm.type)
+      .flatMap((category) => category.subcategories.filter((subcategory) => subcategory.isActive).map((subcategory) => ({ ...subcategory, category })));
+  }
+  async saveInstallmentPurchase() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      await this.api.createInstallmentPurchase(this.activeHousehold!.id, { ...this.installmentForm, totalAmount: Math.round(this.installmentForm.totalAmount * 100) });
+      this.installmentForm = { cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+      this.installmentPurchases = await this.api.installmentPurchases(this.activeHousehold!.id);
+      await this.loadDashboard();
+    });
+  }
+  async cancelFutureInstallments(purchase: InstallmentPurchase) {
+    if (!this.activeHousehold || !confirm(`Cancelar as parcelas futuras de ${purchase.description}?`)) return;
+    await this.run(async () => { await this.api.cancelFutureInstallments(this.activeHousehold!.id, purchase.id); this.installmentPurchases = await this.api.installmentPurchases(this.activeHousehold!.id); await this.loadDashboard(); });
+  }
+
+  async setCardStatus(card: Card, isActive: boolean) {
+    if (!this.activeHousehold || !confirm(`${isActive ? 'Reativar' : 'Arquivar'} o cartão ${card.name}?`)) return;
+    await this.run(async () => { await this.api.setCardStatus(this.activeHousehold!.id, card.id, isActive); this.cards = await this.api.cards(this.activeHousehold!.id); });
   }
 
   async saveCategory() {
@@ -283,7 +441,7 @@ export class AppComponent implements OnInit {
 
   cancelCategoryEdit() {
     this.editingCategoryId = undefined;
-    this.categoryForm = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: '🏷️' };
+    this.categoryForm = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: 'sell' };
   }
 
   async setCategoryStatus(category: Category, isActive: boolean) {
@@ -324,6 +482,7 @@ export class AppComponent implements OnInit {
   }
 
   onTransactionTypeChange() { this.transactionForm.subcategoryId = ''; }
+  onTransactionSourceChange() { this.transactionForm.accountId = ''; this.transactionForm.cardId = ''; }
 
   async applyTransactionFilters(page = 1) {
     if (!this.activeHousehold) return;
@@ -344,7 +503,8 @@ export class AppComponent implements OnInit {
   async saveTransaction() {
     if (!this.activeHousehold) return;
     await this.run(async () => {
-      const data = { ...this.transactionForm, notes: this.transactionForm.notes || undefined, amount: Math.round(this.transactionForm.amount * 100) };
+      const { sourceType, ...form } = this.transactionForm;
+      const data = { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, notes: form.notes || undefined, amount: Math.round(form.amount * 100) };
       if (this.editingTransactionId) await this.api.updateTransaction(this.activeHousehold!.id, this.editingTransactionId, data);
       else await this.api.createTransaction(this.activeHousehold!.id, data);
       this.cancelTransactionEdit();
@@ -355,7 +515,9 @@ export class AppComponent implements OnInit {
   editTransaction(transaction: Transaction) {
     this.editingTransactionId = transaction.id;
     this.transactionForm = {
-      accountId: transaction.account.id,
+      sourceType: transaction.card ? 'CARD' : 'ACCOUNT',
+      accountId: transaction.account?.id ?? '',
+      cardId: transaction.card?.id ?? '',
       subcategoryId: transaction.subcategory.id,
       type: transaction.type,
       amount: transaction.amount / 100,
@@ -368,7 +530,7 @@ export class AppComponent implements OnInit {
 
   cancelTransactionEdit() {
     this.editingTransactionId = undefined;
-    this.transactionForm = { accountId: this.overview?.accounts[0]?.id ?? '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
+    this.transactionForm = { sourceType: 'ACCOUNT', accountId: this.overview?.accounts[0]?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
   }
 
   async deleteTransaction(transactionId: string) {
@@ -381,10 +543,13 @@ export class AppComponent implements OnInit {
 
   private async loadDashboard() {
     if (!this.activeHousehold) return;
-    const [overview, accounts, categories] = await Promise.all([this.api.overview(this.activeHousehold.id), this.api.accounts(this.activeHousehold.id), this.api.categories(this.activeHousehold.id)]);
+    const [overview, accounts, cards, categories, recurringRules, installmentPurchases] = await Promise.all([this.api.overview(this.activeHousehold.id), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id)]);
     this.overview = overview;
     this.accounts = accounts;
+    this.cards = cards;
     this.categories = categories;
+    this.recurringRules = recurringRules;
+    this.installmentPurchases = installmentPurchases;
     await this.loadTransactions();
     if (!this.transactionForm.accountId) this.transactionForm.accountId = this.overview.accounts[0]?.id ?? '';
   }
@@ -421,8 +586,10 @@ export class AppComponent implements OnInit {
   private syncViewFromUrl(url: string) {
     const path = url.split('?')[0];
     const view = path === '/contas' ? 'accounts'
+      : path === '/cartoes' ? 'cards'
       : path === '/categorias' ? 'categories'
-        : path === '/lancamentos' ? 'transactions'
+      : path === '/lancamentos' ? 'transactions'
+          : path === '/recorrencias' ? 'recurrences'
           : 'overview';
     this.activeView = view;
     this.render();
