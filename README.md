@@ -1,27 +1,30 @@
-# OrfinaFrontend
+# Orfina Web
 
-This project was generated with [Angular CLI](https://github.com/angular/angular-cli) version 16.2.9.
+Interface Angular da Orfina, aplicação de gestão financeira familiar.
 
-## Development server
+## Funcionalidades atuais
 
-Run `ng serve` for a dev server. Navigate to `http://localhost:4200/`. The application will automatically reload if you change any of the source files.
+- Login e logout com Google OAuth.
+- Tema claro/escuro, sidebar responsiva e rotas operacionais.
+- Gestão de contas, categorias, subcategorias e lançamentos.
+- Filtros, paginação e histórico de lançamentos por conta.
+- Convites e membros de grupos familiares.
 
-## Code scaffolding
+## Execução local
 
-Run `ng generate component component-name` to generate a new component. You can also use `ng generate directive|pipe|service|class|guard|interface|enum|module`.
+```bash
+npm install
+npm start
+```
 
-## Build
+Abra `http://localhost:4200`. A API de desenvolvimento é `http://localhost:3000/api`.
 
-Run `ng build` to build the project. The build artifacts will be stored in the `dist/` directory.
+## Ambientes e validação
 
-## Running unit tests
+- Desenvolvimento: `src/environments/environment.ts`.
+- Produção: `src/environments/environment.production.ts`, com API relativa `/api`.
+- `window.ORFINA_API_URL` pode substituir a URL em implantações especiais.
 
-Run `ng test` to execute the unit tests via [Karma](https://karma-runner.github.io).
-
-## Running end-to-end tests
-
-Run `ng e2e` to execute the end-to-end tests via a platform of your choice. To use this command, you need to first add a package that implements end-to-end testing capabilities.
-
-## Further help
-
-To get more help on the Angular CLI use `ng help` or go check out the [Angular CLI Overview and Command Reference](https://angular.io/cli) page.
+```bash
+npm run build
+```

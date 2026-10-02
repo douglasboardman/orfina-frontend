@@ -1,5 +1,156 @@
-<app-sidenav (onToggleSideNav)="onToggleSideNav($event)"></app-sidenav>
-<app-body
-  [collapsed]="isSideNavCollapsed"
-  [screenWidth]="screenWidth"
-></app-body>
+<main [class.dark]="theme === 'dark'">
+  <header class="topbar">
+    <div class="topbar-start">
+      <button *ngIf="authenticated" class="icon-button menu-toggle" type="button" (click)="toggleSidebar()" [attr.aria-expanded]="sidebarOpen" aria-label="Abrir menu principal">☰</button>
+      <a class="brand" href="/" aria-label="Orfina, início"><span>or</span>fina</a>
+    </div>
+    <div class="topbar-actions">
+      <button class="theme-switch" type="button" (click)="switchTheme()" [attr.aria-label]="theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'"><span aria-hidden="true">{{ theme === 'dark' ? '☼' : '◐' }}</span><span class="theme-label">{{ theme === 'dark' ? 'Modo claro' : 'Modo escuro' }}</span></button>
+      <button *ngIf="authenticated" class="user-trigger" type="button" (click)="toggleUserMenu()" [attr.aria-expanded]="userMenuOpen"><span class="avatar">{{ userInitial }}</span><span class="user-trigger-name">{{ userName }}</span><span aria-hidden="true">⌄</span></button>
+    </div>
+  </header>
+
+  <section *ngIf="!authenticated" class="landing">
+    <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>
+    <p class="eyebrow">ORçamento e FINAnças</p>
+    <h1>Seu dinheiro, mais tranquilo.</h1>
+    <p>Organize a vida financeira da sua família em um só lugar, com privacidade e clareza.</p>
+    <button class="google-button" type="button" (click)="signIn()">Continuar com Google</button>
+  </section>
+
+  <section *ngIf="authenticated" class="workspace">
+    <button *ngIf="sidebarOpen" class="sidebar-scrim" type="button" (click)="toggleSidebar()" aria-label="Fechar menu"></button>
+    <aside class="app-sidebar" [class.open]="sidebarOpen" aria-label="Navegação principal">
+      <p class="sidebar-title">Navegação</p>
+      <nav>
+        <button class="nav-item" [class.active]="activeView === 'overview'" type="button" title="Visão geral" (click)="selectView('overview')"><span aria-hidden="true">⌂</span><span>Visão geral</span></button>
+        <button class="nav-item" [class.active]="activeView === 'accounts'" type="button" title="Contas" (click)="selectView('accounts')"><span aria-hidden="true">▣</span><span>Contas</span></button>
+        <button class="nav-item" [class.active]="activeView === 'transactions'" type="button" title="Lançamentos" (click)="selectView('transactions')"><span aria-hidden="true">↕</span><span>Lançamentos</span></button>
+        <button class="nav-item" [class.active]="activeView === 'categories'" type="button" title="Categorias" (click)="selectView('categories')"><span aria-hidden="true">◌</span><span>Categorias</span></button>
+        <button class="nav-item" type="button" title="Relatórios" disabled><span aria-hidden="true">◔</span><span>Relatórios</span></button>
+      </nav>
+    </aside>
+
+    <div class="content-shell">
+      <div *ngIf="userMenuOpen" class="user-menu">
+        <div class="user-menu-heading"><span class="avatar large">{{ userInitial }}</span><div><strong>{{ userName }}</strong><small>Conta Google conectada</small></div></div>
+        <button type="button" class="user-menu-item" disabled>Perfil <span>Em breve</span></button>
+        <div class="user-menu-section">
+          <p class="eyebrow">GRUPO FAMILIAR</p>
+          <select [ngModel]="activeHousehold?.id" (ngModelChange)="selectHousehold($event); userMenuOpen = false" aria-label="Selecionar grupo familiar"><option *ngFor="let household of households" [value]="household.id">{{ household.name }}</option></select>
+          <form class="inline-form" (ngSubmit)="createHousehold()"><input name="householdName" [(ngModel)]="householdName" placeholder="Novo grupo familiar" required><button type="submit">Criar grupo</button></form>
+          <button *ngIf="canManageActiveHousehold" class="user-menu-item manage-group-button" type="button" (click)="toggleHouseholdManagement()">{{ householdManagementOpen ? 'Fechar gestão do grupo' : 'Gerenciar grupo familiar' }}</button>
+          <div *ngIf="householdManagementOpen" class="household-management">
+            <p class="eyebrow">MEMBROS</p>
+            <div *ngFor="let member of householdMembers" class="member-row"><span>{{ member.user.name }}</span><small>{{ member.role }}</small></div>
+            <form class="inline-form" (ngSubmit)="createHouseholdInvitation()"><input name="inviteEmail" [(ngModel)]="invitationForm.email" type="email" placeholder="E-mail para convidar" required><select name="inviteRole" [(ngModel)]="invitationForm.role"><option value="MEMBER">Pode lançar</option><option value="VIEWER">Somente leitura</option></select><button type="submit" [disabled]="loading">Criar convite</button></form>
+            <p class="form-hint">O convite será exibido quando essa pessoa entrar com esse e-mail Google.</p>
+            <div *ngFor="let invitation of householdInvitations" class="invitation-row"><span>{{ invitation.email }}<small>{{ invitation.role }} · {{ invitation.status }}</small></span><button *ngIf="invitation.status === 'PENDING'" class="text-button" type="button" (click)="revokeHouseholdInvitation(invitation)">Revogar</button></div>
+          </div>
+          <div *ngIf="myHouseholdInvitations.length" class="received-invitations"><p class="eyebrow">CONVITES RECEBIDOS</p><div *ngFor="let invitation of myHouseholdInvitations" class="invitation-row"><span>{{ invitation.household?.name }}<small>{{ invitation.role === 'VIEWER' ? 'Somente leitura' : 'Pode lançar' }}</small></span><button type="button" (click)="acceptHouseholdInvitation(invitation)" [disabled]="loading">Aceitar</button></div></div>
+        </div>
+        <button type="button" class="user-menu-item danger" (click)="signOut()">Sair</button>
+      </div>
+
+      <div class="content" *ngIf="activeHousehold; else welcome">
+      <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>
+      <div class="heading"><div><p class="eyebrow">{{ viewEyebrow }}</p><h2>{{ viewTitle }}</h2></div><span class="sync">{{ loading ? 'Atualizando...' : 'Tudo atualizado' }}</span></div>
+
+      <section *ngIf="activeView === 'overview'" class="balance-card">
+        <p>Saldo disponível</p>
+        <strong>{{ (overview?.totalBalance ?? 0) / 100 | currency:currency:'symbol-narrow':'1.2-2':'pt-BR' }}</strong>
+        <span>Somatório das contas ativas</span>
+      </section>
+
+      <section *ngIf="activeView === 'overview' || activeView === 'accounts'" class="grid accounts">
+        <article *ngFor="let account of displayedAccounts" class="card account-card" [class.archived]="!account.isActive">
+          <div><span class="bank-mark">{{ account.name.slice(0, 1) }}</span><p>{{ account.name }}</p></div>
+          <small>{{ account.bankName || (account.type === 'CASH' ? 'Dinheiro' : 'Conta') }}</small>
+          <strong>{{ (account.balance ?? 0) / 100 | currency:currency:'symbol-narrow':'1.2-2':'pt-BR' }}</strong>
+          <div *ngIf="activeView === 'accounts'" class="card-actions">
+            <button class="text-button" type="button" (click)="viewAccountTransactions(account)">Lançamentos</button>
+            <button class="text-button" type="button" (click)="editAccount(account)">Editar</button>
+            <button class="text-button" type="button" (click)="setAccountStatus(account, !account.isActive)">{{ account.isActive ? 'Arquivar' : 'Reativar' }}</button>
+          </div>
+        </article>
+        <article *ngIf="!displayedAccounts.length" class="empty-card"><app-empty-state title="Nenhuma conta ativa" description="Cadastre sua primeira conta para começar."></app-empty-state></article>
+      </section>
+
+      <section class="grid forms">
+        <form *ngIf="activeView === 'accounts'" class="card form-card" (ngSubmit)="saveAccount()">
+          <h3>{{ editingAccountId ? 'Editar conta' : 'Nova conta' }}</h3>
+          <input name="accountName" [(ngModel)]="accountForm.name" placeholder="Nome da conta" required>
+          <input name="bankName" [(ngModel)]="accountForm.bankName" placeholder="Banco (opcional)">
+          <div class="two-columns"><select name="accountType" [(ngModel)]="accountForm.type"><option value="CHECKING">Corrente</option><option value="SALARY">Salário</option><option value="SAVINGS">Poupança</option><option value="INVESTMENT">Investimento</option><option value="CASH">Dinheiro</option></select><input name="initialBalance" [(ngModel)]="accountForm.initialBalance" type="number" step="0.01" placeholder="Saldo inicial"></div>
+          <button type="submit" [disabled]="loading">{{ editingAccountId ? 'Salvar alterações' : 'Adicionar conta' }}</button>
+          <button *ngIf="editingAccountId" class="secondary-button" type="button" (click)="cancelAccountEdit()">Cancelar</button>
+        </form>
+        <form *ngIf="activeView === 'categories'" class="card form-card" (ngSubmit)="saveCategory()">
+          <h3>{{ editingCategoryId ? 'Editar categoria' : 'Nova categoria' }}</h3>
+          <input name="categoryName" [(ngModel)]="categoryForm.name" placeholder="Ex.: Mercado" required>
+          <input name="categoryIcon" [(ngModel)]="categoryForm.icon" placeholder="Ícone (ex.: 🛒)" list="category-icons" required maxlength="40">
+          <datalist id="category-icons"><option *ngFor="let icon of categoryIcons" [value]="icon"></option></datalist>
+          <div class="two-columns"><select name="categoryType" [(ngModel)]="categoryForm.type" [disabled]="!!editingCategoryId"><option value="EXPENSE">Despesa</option><option value="INCOME">Receita</option></select><input name="categoryColor" [(ngModel)]="categoryForm.color" type="color" aria-label="Cor da categoria"></div>
+          <button type="submit" [disabled]="loading">{{ editingCategoryId ? 'Salvar alterações' : 'Adicionar categoria' }}</button>
+          <button *ngIf="editingCategoryId" class="secondary-button" type="button" (click)="cancelCategoryEdit()">Cancelar</button>
+        </form>
+        <form *ngIf="activeView === 'categories'" class="card form-card" (ngSubmit)="saveSubcategory()">
+          <h3>{{ editingSubcategoryId ? 'Editar subcategoria' : 'Nova subcategoria' }}</h3>
+          <select name="subcategoryCategory" [(ngModel)]="subcategoryForm.categoryId" [disabled]="!!editingSubcategoryId" required><option value="" disabled>Categoria pai</option><option *ngFor="let category of categories" [disabled]="!category.isActive" [value]="category.id">{{ category.icon }} {{ category.name }} · {{ category.type === 'EXPENSE' ? 'Despesa' : 'Receita' }}</option></select>
+          <input name="subcategoryName" [(ngModel)]="subcategoryForm.name" placeholder="Ex.: Supermercado" required>
+          <p class="form-hint">A cor será herdada automaticamente da categoria.</p>
+          <button type="submit" [disabled]="loading || !subcategoryForm.categoryId">{{ editingSubcategoryId ? 'Salvar alterações' : 'Adicionar subcategoria' }}</button>
+          <button *ngIf="editingSubcategoryId" class="secondary-button" type="button" (click)="cancelSubcategoryEdit()">Cancelar</button>
+        </form>
+        <form *ngIf="activeView === 'transactions'" class="card form-card transaction-form" (ngSubmit)="saveTransaction()">
+          <h3>{{ editingTransactionId ? 'Editar lançamento' : 'Novo lançamento' }}</h3>
+          <input name="transactionDescription" [(ngModel)]="transactionForm.description" placeholder="Descrição" required>
+          <div class="two-columns"><select name="transactionType" [(ngModel)]="transactionForm.type" (ngModelChange)="onTransactionTypeChange()"><option value="EXPENSE">Despesa</option><option value="INCOME">Receita</option></select><input name="transactionAmount" [(ngModel)]="transactionForm.amount" type="number" min="0.01" step="0.01" placeholder="Valor" required></div>
+          <div class="two-columns"><select name="transactionAccount" [(ngModel)]="transactionForm.accountId" required><option value="" disabled>Conta</option><option *ngFor="let account of overview?.accounts" [value]="account.id">{{ account.name }}</option></select><select name="transactionCategory" [(ngModel)]="transactionForm.subcategoryId" required aria-label="Categoria"><option value="" disabled>Categoria</option><option *ngFor="let item of filteredSubcategories" [value]="item.id">{{ item.category.icon }} {{ item.category.name }} · {{ item.name }}</option></select></div>
+          <input name="transactionDate" [(ngModel)]="transactionForm.occurredOn" type="date" required>
+          <textarea name="transactionNotes" [(ngModel)]="transactionForm.notes" maxlength="1000" placeholder="Observações (opcional)"></textarea>
+          <button type="submit" [disabled]="loading || !transactionForm.accountId || !transactionForm.subcategoryId">{{ editingTransactionId ? 'Salvar alterações' : 'Adicionar lançamento' }}</button>
+          <button *ngIf="editingTransactionId" class="secondary-button" type="button" (click)="cancelTransactionEdit()">Cancelar</button>
+        </form>
+      </section>
+
+      <section *ngIf="activeView === 'transactions'" class="card transaction-filters" aria-label="Filtros de lançamentos">
+        <div class="section-title"><h3>Filtros</h3><button class="text-button" type="button" (click)="clearTransactionFilters()">Limpar filtros</button></div>
+        <div class="filter-fields">
+          <select name="filterType" [(ngModel)]="transactionFilters.type" (ngModelChange)="applyTransactionFilters()"><option [ngValue]="undefined">Todos os tipos</option><option value="EXPENSE">Despesas</option><option value="INCOME">Receitas</option></select>
+          <select name="filterAccount" [(ngModel)]="transactionFilters.accountId" (ngModelChange)="applyTransactionFilters()"><option value="">Todas as contas</option><option *ngFor="let account of accounts" [value]="account.id">{{ account.name }}</option></select>
+          <select name="filterCategory" [(ngModel)]="transactionFilters.categoryId" (ngModelChange)="onFilterCategoryChange()"><option value="">Todas as categorias</option><option *ngFor="let category of categories" [disabled]="!category.isActive" [value]="category.id">{{ category.icon }} {{ category.name }}</option></select>
+          <select name="filterSubcategory" [(ngModel)]="transactionFilters.subcategoryId" (ngModelChange)="applyTransactionFilters()" [disabled]="!transactionFilters.categoryId"><option value="">Todas as subcategorias</option><option *ngFor="let subcategory of filterSubcategories" [value]="subcategory.id">{{ subcategory.name }}</option></select>
+          <input name="filterFrom" [(ngModel)]="transactionFilters.from" (change)="applyTransactionFilters()" type="date" aria-label="A partir de">
+          <input name="filterTo" [(ngModel)]="transactionFilters.to" (change)="applyTransactionFilters()" type="date" aria-label="Até">
+        </div>
+      </section>
+
+      <section *ngIf="activeView === 'categories'" class="card category-list">
+        <div class="section-title"><h3>Classificação financeira</h3><span>{{ categories.length }} categorias</span></div>
+        <app-empty-state *ngIf="!categories.length" title="Nenhuma categoria" description="Crie a primeira categoria para começar."></app-empty-state>
+        <p *ngIf="expenseCategories.length" class="category-kind">Despesas</p>
+        <div *ngFor="let category of expenseCategories" class="category-row" [class.archived]="!category.isActive">
+          <span [style.background]="category.color" class="category-dot"></span>
+          <div class="category-details">
+            <div class="category-heading"><div><strong>{{ category.icon }} {{ category.name }}</strong><small>{{ category.type === 'EXPENSE' ? 'Despesa' : 'Receita' }} · {{ category.subcategories.length }} subcategorias{{ category.isActive ? '' : ' · Arquivada' }}</small></div><div class="card-actions"><button class="text-button" type="button" (click)="editCategory(category)">Editar</button><button class="text-button" type="button" (click)="setCategoryStatus(category, !category.isActive)">{{ category.isActive ? 'Arquivar' : 'Reativar' }}</button></div></div>
+            <div *ngIf="category.subcategories.length" class="subcategory-list"><div *ngFor="let subcategory of category.subcategories" class="subcategory-row" [class.archived]="!subcategory.isActive"><span>{{ subcategory.name }}{{ subcategory.isActive ? '' : ' · Arquivada' }}</span><div class="card-actions"><button class="text-button" type="button" (click)="editSubcategory(category, subcategory)">Editar</button><button class="text-button" type="button" (click)="setSubcategoryStatus(category, subcategory, !subcategory.isActive)">{{ subcategory.isActive ? 'Arquivar' : 'Reativar' }}</button></div></div></div>
+          </div>
+        </div>
+        <p *ngIf="incomeCategories.length" class="category-kind">Receitas</p>
+        <div *ngFor="let category of incomeCategories" class="category-row" [class.archived]="!category.isActive">
+          <span [style.background]="category.color" class="category-dot"></span>
+          <div class="category-details">
+            <div class="category-heading"><div><strong>{{ category.icon }} {{ category.name }}</strong><small>{{ category.type === 'EXPENSE' ? 'Despesa' : 'Receita' }} · {{ category.subcategories.length }} subcategorias{{ category.isActive ? '' : ' · Arquivada' }}</small></div><div class="card-actions"><button class="text-button" type="button" (click)="editCategory(category)">Editar</button><button class="text-button" type="button" (click)="setCategoryStatus(category, !category.isActive)">{{ category.isActive ? 'Arquivar' : 'Reativar' }}</button></div></div>
+            <div *ngIf="category.subcategories.length" class="subcategory-list"><div *ngFor="let subcategory of category.subcategories" class="subcategory-row" [class.archived]="!subcategory.isActive"><span>{{ subcategory.name }}{{ subcategory.isActive ? '' : ' · Arquivada' }}</span><div class="card-actions"><button class="text-button" type="button" (click)="editSubcategory(category, subcategory)">Editar</button><button class="text-button" type="button" (click)="setSubcategoryStatus(category, subcategory, !subcategory.isActive)">{{ subcategory.isActive ? 'Arquivar' : 'Reativar' }}</button></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section *ngIf="activeView === 'overview' || activeView === 'transactions'" class="card transactions"><div class="section-title"><h3>{{ activeView === 'overview' ? 'Lançamentos recentes' : 'Todos os lançamentos' }}</h3><span>{{ activeView === 'transactions' ? transactionTotal : displayedTransactions.length }} itens</span></div><div *ngIf="!displayedTransactions.length" class="empty">Os lançamentos aparecerão aqui.</div><div *ngFor="let transaction of displayedTransactions" class="transaction"><span [style.background]="transaction.category.color" class="category-dot"></span><div><strong>{{ transaction.description }}</strong><small>{{ transaction.category.icon }} {{ transaction.category.name }} · {{ transaction.subcategory.name }} · {{ transaction.account.name }} · {{ transaction.occurredOn | date:'dd/MM/yyyy':'UTC' }}</small></div><b [class.income]="transaction.type === 'INCOME'">{{ transaction.type === 'INCOME' ? '+' : '−' }} {{ transaction.amount / 100 | currency:currency:'symbol-narrow':'1.2-2':'pt-BR' }}</b><div *ngIf="activeView === 'transactions'" class="transaction-actions"><button class="text-button" type="button" (click)="editTransaction(transaction)">Editar</button><button class="transaction-delete" type="button" (click)="deleteTransaction(transaction.id)" aria-label="Excluir lançamento">×</button></div></div><div *ngIf="activeView === 'transactions' && transactionPageCount > 1" class="pagination"><button class="text-button" type="button" [disabled]="transactionPage === 1" (click)="applyTransactionFilters(transactionPage - 1)">Anterior</button><span>Página {{ transactionPage }} de {{ transactionPageCount }}</span><button class="text-button" type="button" [disabled]="transactionPage === transactionPageCount" (click)="applyTransactionFilters(transactionPage + 1)">Próxima</button></div></section>
+      </div>
+      <ng-template #welcome><div class="welcome"><app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner><h2>Crie seu primeiro grupo familiar.</h2><p>Abra o menu da sua conta, no canto superior direito, para criar ou selecionar um grupo familiar.</p></div></ng-template>
+    </div>
+  </section>
+  <router-outlet aria-hidden="true"></router-outlet>
+</main>
