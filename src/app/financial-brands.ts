@@ -2,8 +2,6 @@ export type CardNetwork = 'VISA' | 'MASTERCARD' | 'ELO' | 'AMERICAN_EXPRESS' | '
 
 type BrandOption = { name: string; logoUrl: string };
 
-const iconUrl = (slug: string) => `https://cdn.jsdelivr.net/npm/simple-icons@v16/icons/${slug}.svg`;
-
 export const brazilianBanks: readonly BrandOption[] = [
   { name: 'Carteira (conta não bancária)', logoUrl: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%235b5bd6"%3E%3Cpath d="M20 7V6a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Zm-2-1v1H5a1 1 0 0 1 0-2h13ZM5 18a1 1 0 0 1-1-1V8.82A3 3 0 0 0 5 9h15v9H5Zm11-3a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/%3E%3C/svg%3E' },
   { name: 'ABC Brasil', logoUrl: '/assets/banks/bank-001.svg' },
@@ -109,10 +107,10 @@ export const bankLogoUrlFor = (bankName?: string, fallback?: string) => {
 };
 
 export const cardNetworks: Readonly<Record<CardNetwork, BrandOption>> = {
-  VISA: { name: 'Visa', logoUrl: iconUrl('visa') }, MASTERCARD: { name: 'Mastercard', logoUrl: iconUrl('mastercard') },
-  ELO: { name: 'Elo', logoUrl: iconUrl('elo') }, AMERICAN_EXPRESS: { name: 'American Express', logoUrl: iconUrl('americanexpress') },
-  HIPERCARD: { name: 'Hipercard', logoUrl: iconUrl('hipercard') }, DINERS_CLUB: { name: 'Diners Club', logoUrl: iconUrl('dinersclub') },
-  DISCOVER: { name: 'Discover', logoUrl: iconUrl('discover') }, JCB: { name: 'JCB', logoUrl: iconUrl('jcb') },
-  UNIONPAY: { name: 'UnionPay', logoUrl: iconUrl('unionpay') }, MAESTRO: { name: 'Maestro', logoUrl: iconUrl('maestro') },
-  OTHER: { name: 'Outra bandeira', logoUrl: '' },
+  VISA: { name: 'Visa', logoUrl: '/assets/networks/visa.svg' }, MASTERCARD: { name: 'Mastercard', logoUrl: '/assets/networks/mastercard.svg' },
+  ELO: { name: 'Elo', logoUrl: '/assets/networks/elo.svg' }, AMERICAN_EXPRESS: { name: 'American Express', logoUrl: '/assets/networks/american-express.svg' },
+  HIPERCARD: { name: 'Hipercard', logoUrl: '/assets/networks/hipercard.svg' }, DINERS_CLUB: { name: 'Diners Club', logoUrl: '/assets/networks/diners.svg' },
+  DISCOVER: { name: 'Discover', logoUrl: '/assets/networks/discover.svg' }, JCB: { name: 'JCB', logoUrl: '/assets/networks/jcb.svg' },
+  UNIONPAY: { name: 'UnionPay', logoUrl: '/assets/networks/unionpay.svg' }, MAESTRO: { name: 'Maestro', logoUrl: '/assets/networks/maestro.svg' },
+  OTHER: { name: 'Outra bandeira', logoUrl: '/assets/networks/other.svg' },
 };

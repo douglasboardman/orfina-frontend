@@ -8,17 +8,23 @@ const API_URL = (globalThis as typeof globalThis & { ORFINA_API_URL?: string }).
 @Injectable({ providedIn: 'root' })
 export class ApiService {
   async me(): Promise<{ id: string; email: string; name: string }> { return this.request('/auth/me'); }
+  async refreshSession(): Promise<void> { await this.request('/auth/refresh', { method: 'POST' }); }
   async logout(): Promise<void> { await this.request('/auth/logout', { method: 'POST' }); }
 
   async getHouseholds(): Promise<Household[]> { return this.request('/households'); }
   async createHousehold(name: string): Promise<Household> { return this.request('/households', { method: 'POST', body: JSON.stringify({ name }) }); }
+  async updateHousehold(id: string, data: { name: string }): Promise<Household> { return this.request(`/households/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async householdMembers(id: string): Promise<HouseholdMember[]> { return this.request(`/households/${id}/members`); }
   async householdInvitations(id: string): Promise<HouseholdInvitation[]> { return this.request(`/households/${id}/invitations`); }
   async createHouseholdInvitation(id: string, data: { email: string; role: 'MEMBER' | 'VIEWER' }): Promise<HouseholdInvitation> { return this.request(`/households/${id}/invitations`, { method: 'POST', body: JSON.stringify(data) }); }
   async revokeHouseholdInvitation(id: string, invitationId: string): Promise<HouseholdInvitation> { return this.request(`/households/${id}/invitations/${invitationId}/revoke`, { method: 'PATCH' }); }
   async myHouseholdInvitations(): Promise<HouseholdInvitation[]> { return this.request('/households/invitations/mine'); }
   async acceptHouseholdInvitation(invitationId: string): Promise<HouseholdInvitation> { return this.request(`/households/invitations/${invitationId}/accept`, { method: 'POST' }); }
-  async overview(id: string): Promise<Overview> { return this.request(`/households/${id}/overview`); }
+  async overview(id: string, referenceMonth?: string): Promise<Overview> {
+    const suffix = referenceMonth ? `?referenceMonth=${encodeURIComponent(referenceMonth)}` : '';
+    return this.request(`/households/${id}/overview${suffix}`);
+  }
+  async version(): Promise<{ version: string; build?: string }> { return this.request('/version'); }
   async accounts(id: string): Promise<Account[]> { return this.request(`/households/${id}/accounts`); }
   async categories(id: string): Promise<Category[]> { return this.request(`/households/${id}/categories`); }
   async createAccount(id: string, data: { name: string; type: string; bankName?: string; bankLogoUrl?: string; initialBalance: number }): Promise<Account> { return this.request(`/households/${id}/accounts`, { method: 'POST', body: JSON.stringify(data) }); }
@@ -72,6 +78,10 @@ export class ApiService {
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = init.body === undefined ? {} : { 'Content-Type': 'application/json' };
+    if (init.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method)) {
+      const csrf = document.cookie.split('; ').find((item) => item.startsWith('orfina_csrf='))?.slice('orfina_csrf='.length);
+      if (csrf) headers['X-Orfina-CSRF'] = decodeURIComponent(csrf);
+    }
     const response = await fetch(`${API_URL}${path}`, { ...init, credentials: 'include', headers: { ...headers, ...init.headers } });
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => ({}));

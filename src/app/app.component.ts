@@ -7,10 +7,12 @@ import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStateme
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from './financial-brands';
 import { EmptyStateComponent } from './ui/empty-state.component';
 import { FeedbackBannerComponent } from './ui/feedback-banner.component';
+import { AppIconComponent } from './ui/app-icon.component';
+import { DrawerComponent } from './ui/drawer.component';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, RouterOutlet, EmptyStateComponent, FeedbackBannerComponent],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, RouterOutlet, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
@@ -41,13 +43,16 @@ export class AppComponent implements OnInit {
   currentUser?: { id: string; email: string; name: string };
   error = '';
   loading = false;
-  sidebarOpen = false;
+  backendVersion?: string;
+  referenceMonth = new Date().toISOString().slice(0, 7);
+  sidebarOpen = localStorage.getItem('orfina.sidebar-open') === 'true';
   userMenuOpen = false;
   householdManagementOpen = false;
-  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports' = 'overview';
+  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports' | 'profile' | 'group' = 'overview';
   readonly brazilianBanks = brazilianBanks;
   readonly cardNetworks = cardNetworks;
   householdName = '';
+  groupName = '';
   readonly categoryIcons = [
     { value: 'sell', label: 'Etiqueta' },
     { value: 'payments', label: 'Dinheiro em espécie' },
@@ -149,6 +154,8 @@ export class AppComponent implements OnInit {
   }
   get displayedAccounts() { return this.activeView === 'accounts' ? this.accounts : this.overview?.accounts ?? []; }
   get viewTitle() {
+    if (this.activeView === 'profile') return 'Perfil e preferências';
+    if (this.activeView === 'group') return 'Configurações do grupo';
     if (this.activeView === 'imports') return 'Importações';
     if (this.activeView === 'transfers') return 'Transferências';
     if (this.activeView === 'accounts') return 'Contas';
@@ -160,6 +167,14 @@ export class AppComponent implements OnInit {
     if (this.activeView === 'transactions') return 'Lançamentos';
     return `Olá, família ${this.activeHousehold?.name ?? ''}`;
   }
+  get referenceMonthLabel() {
+    return new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+      .format(new Date(`${this.referenceMonth}-01T12:00:00.000Z`));
+  }
+  get isActionRoute() { return /\/(nova|novo(?:-limite)?|editar)(?:\/|$)/.test(this.router.url.split('?')[0]); }
+  get isInstallmentAction() { return this.router.url.split('?')[0] === '/cartoes/parcelamentos/nova'; }
+  get usesDrawerAction() { return this.isActionRoute && !this.isInstallmentAction && ['accounts', 'cards', 'categories', 'transactions'].includes(this.activeView); }
+  get isSubcategoryAction() { return this.router.url.split('?')[0].startsWith('/categorias/subcategorias/'); }
   get viewEyebrow() { return this.activeView === 'overview' ? 'VISÃO GERAL' : this.activeView.toUpperCase(); }
   get userName() {
     return this.currentUser?.name || 'Minha conta';
@@ -177,6 +192,7 @@ export class AppComponent implements OnInit {
 
   toggleSidebar() {
     this.sidebarOpen = !this.sidebarOpen;
+    if (!matchMedia('(max-width: 860px)').matches) localStorage.setItem('orfina.sidebar-open', String(this.sidebarOpen));
     this.render();
   }
 
@@ -187,7 +203,7 @@ export class AppComponent implements OnInit {
 
   selectView(view: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports') {
     this.activeView = view;
-    this.sidebarOpen = false;
+    if (matchMedia('(max-width: 860px)').matches) this.sidebarOpen = false;
     this.userMenuOpen = false;
     void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', cards: '/cartoes', categories: '/categorias', transactions: '/lancamentos', recurrences: '/recorrencias', budget: '/orcamento', goals: '/metas', transfers: '/transferencias', imports: '/importacoes' }[view]);
     this.render();
@@ -239,22 +255,73 @@ export class AppComponent implements OnInit {
     }
     await this.run(async () => {
       this.households = await this.api.getHouseholds();
+      void this.api.version().then((release) => { this.backendVersion = release.build ? `${release.version} · ${release.build}` : release.version; this.render(); }).catch(() => undefined);
       this.myHouseholdInvitations = await this.api.myHouseholdInvitations();
       const saved = localStorage.getItem('orfina.active-household');
       this.activeHousehold = this.households.find((item) => item.id === saved) ?? this.households[0];
-      if (this.activeHousehold) await this.loadDashboard();
+      if (this.activeHousehold) {
+        this.groupName = this.activeHousehold.name;
+        await this.loadDashboard();
+        this.hydrateActionFromPath(this.router.url.split('?')[0]);
+      }
     });
   }
 
   async selectHousehold(id: string) {
     this.activeHousehold = this.households.find((item) => item.id === id);
     if (this.activeHousehold) {
+      this.groupName = this.activeHousehold.name;
       localStorage.setItem('orfina.active-household', id);
       this.householdManagementOpen = false;
       this.householdMembers = [];
       this.householdInvitations = [];
       await this.run(() => this.loadDashboard());
     }
+  }
+
+  async changeReferenceMonth(month: string) {
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || month === this.referenceMonth) return;
+    this.referenceMonth = month;
+    this.budgetMonth = month;
+    await this.run(() => this.loadDashboard());
+  }
+
+  async stepReferenceMonth(offset: number) {
+    const [year, month] = this.referenceMonth.split('-').map(Number);
+    const target = new Date(Date.UTC(year, month - 1 + offset, 1));
+    await this.changeReferenceMonth(`${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}`);
+  }
+
+  openAction(path: string) { void this.router.navigateByUrl(path); }
+  cancelAction(view: string) { void this.router.navigateByUrl(`/${view}`); }
+  cancelCurrentAction() {
+    if (this.activeView === 'accounts') this.cancelAccountEdit();
+    else if (this.activeView === 'cards') this.cancelCardEdit();
+    else if (this.activeView === 'categories' && this.isSubcategoryAction) this.cancelSubcategoryEdit();
+    else if (this.activeView === 'categories') this.cancelCategoryEdit();
+    else if (this.activeView === 'transactions') this.cancelTransactionEdit();
+    else this.cancelAction(this.viewPath(this.activeView));
+  }
+
+  private viewPath(view: string) {
+    return ({ overview: 'visao-geral', accounts: 'contas', cards: 'cartoes', categories: 'categorias', transactions: 'lancamentos', recurrences: 'recorrencias', budget: 'orcamento', goals: 'metas', transfers: 'transferencias', imports: 'importacoes', profile: 'configuracoes/perfil', group: 'configuracoes/grupo' } as Record<string, string>)[view] ?? 'visao-geral';
+  }
+
+  async viewOverviewCategory(categoryId: string) {
+    this.transactionFilters = { ...this.transactionFilters, categoryId, from: `${this.referenceMonth}-01`, to: this.monthEnd(this.referenceMonth) };
+    await this.router.navigateByUrl('/lancamentos');
+    await this.applyTransactionFilters();
+  }
+
+  async viewOverviewCategories() {
+    this.transactionFilters = { ...this.transactionFilters, categoryId: '', from: `${this.referenceMonth}-01`, to: this.monthEnd(this.referenceMonth) };
+    await this.router.navigateByUrl('/lancamentos');
+    await this.applyTransactionFilters();
+  }
+
+  weeklyPercent(week: { income: number; expenses: number }, key: 'income' | 'expenses') {
+    const highest = Math.max(...(this.overview?.charts?.weeklyFlow ?? []).flatMap((item) => [item.income, item.expenses]), 1);
+    return Math.max(2, Math.round((week[key] / highest) * 100));
   }
 
   async createHousehold() {
@@ -264,6 +331,25 @@ export class AppComponent implements OnInit {
       this.households = [...this.households, household];
       this.householdName = '';
       await this.selectHousehold(household.id);
+    });
+  }
+
+  async createHouseholdFromDialog() {
+    const name = prompt('Nome do novo grupo familiar:')?.trim();
+    if (!name) return;
+    this.householdName = name;
+    await this.createHousehold();
+  }
+
+  async renameActiveHousehold() {
+    if (!this.activeHousehold || !this.canManageActiveHousehold) return;
+    const name = this.groupName.trim();
+    if (name.length < 2 || name === this.activeHousehold.name) return;
+    await this.run(async () => {
+      const updated = await this.api.updateHousehold(this.activeHousehold!.id, { name });
+      this.households = this.households.map((household) => household.id === updated.id ? updated : household);
+      this.activeHousehold = updated;
+      this.groupName = updated.name;
     });
   }
 
@@ -318,7 +404,7 @@ export class AppComponent implements OnInit {
   editAccount(account: Account) {
     this.editingAccountId = account.id;
     this.accountForm = { name: account.name, type: account.type, bankName: account.bankName ?? '', bankLogoUrl: bankLogoUrlFor(account.bankName, account.bankLogoUrl) ?? '', initialBalance: account.initialBalance / 100 };
-    this.render();
+    this.openAction(`/contas/${account.id}/editar`);
   }
 
   async viewAccountTransactions(account: Account) {
@@ -330,6 +416,7 @@ export class AppComponent implements OnInit {
   cancelAccountEdit() {
     this.editingAccountId = undefined;
     this.accountForm = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
+    this.cancelAction('contas');
   }
 
   async setAccountStatus(account: Account, isActive: boolean) {
@@ -366,10 +453,10 @@ export class AppComponent implements OnInit {
   editCard(card: Card) {
     this.editingCardId = card.id;
     this.cardForm = { name: card.name, issuerName: card.issuerName ?? '', issuerLogoUrl: bankLogoUrlFor(card.issuerName, card.issuerLogoUrl) ?? '', network: card.network, lastFour: card.lastFour ?? '', creditLimit: card.creditLimit === undefined ? null : card.creditLimit / 100, closingDay: card.closingDay, dueDay: card.dueDay };
-    this.render();
+    this.openAction(`/cartoes/${card.id}/editar`);
   }
 
-  cancelCardEdit() { this.editingCardId = undefined; this.cardForm = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 }; }
+  cancelCardEdit() { this.editingCardId = undefined; this.cardForm = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 }; this.cancelAction('cartoes'); }
 
   async selectCard(card: Card) {
     if (!this.activeHousehold) return;
@@ -405,6 +492,7 @@ export class AppComponent implements OnInit {
       await this.api.createRecurringRule(this.activeHousehold!.id, { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, amount: Math.round(form.amount * 100), endOn: form.endOn || undefined });
       this.recurringForm = { sourceType: 'ACCOUNT', accountId: this.accounts.find((account) => account.isActive)?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
       this.recurringRules = await this.api.recurringRules(this.activeHousehold!.id);
+      await this.router.navigateByUrl('/recorrencias');
     });
   }
   async setRecurringRuleStatus(rule: RecurringRule, status: 'ACTIVE' | 'PAUSED' | 'ENDED') {
@@ -443,6 +531,7 @@ export class AppComponent implements OnInit {
       await this.api.upsertBudget(this.activeHousehold!.id, this.budgetMonth, { categoryId: this.budgetForm.categoryId, limitAmount: Math.round(this.budgetForm.limitAmount * 100), notes: this.budgetForm.notes || undefined });
       this.budgetForm = { categoryId: '', limitAmount: 0, notes: '' };
       await this.loadBudget();
+      await this.router.navigateByUrl('/orcamento');
     });
   }
   async deleteBudget(categoryId: string) {
@@ -465,6 +554,7 @@ export class AppComponent implements OnInit {
       await this.api.createGoal(this.activeHousehold!.id, { ...this.goalForm, targetAmount: Math.round(this.goalForm.targetAmount * 100), targetDate: this.goalForm.targetDate || undefined, icon: this.goalForm.icon || undefined });
       this.goalForm = { name: '', targetAmount: 0, targetDate: '', color: '#5B5BD6', icon: 'flag' };
       this.savingsGoals = await this.api.goals(this.activeHousehold!.id);
+      await this.router.navigateByUrl('/metas');
     });
   }
   async contributeToGoal(goal: SavingsGoal) {
@@ -500,12 +590,13 @@ export class AppComponent implements OnInit {
   editCategory(category: Category) {
     this.editingCategoryId = category.id;
     this.categoryForm = { name: category.name, type: category.type, color: category.color, icon: category.icon };
-    this.render();
+    this.openAction(`/categorias/${category.id}/editar`);
   }
 
   cancelCategoryEdit() {
     this.editingCategoryId = undefined;
     this.categoryForm = { name: '', type: 'EXPENSE', color: '#5B5BD6', icon: 'sell' };
+    this.cancelAction('categorias');
   }
 
   async setCategoryStatus(category: Category, isActive: boolean) {
@@ -529,12 +620,13 @@ export class AppComponent implements OnInit {
   editSubcategory(category: Category, subcategory: Category['subcategories'][number]) {
     this.editingSubcategoryId = subcategory.id;
     this.subcategoryForm = { categoryId: category.id, name: subcategory.name };
-    this.render();
+    this.openAction(`/categorias/subcategorias/${subcategory.id}/editar`);
   }
 
   cancelSubcategoryEdit() {
     this.editingSubcategoryId = undefined;
     this.subcategoryForm = { categoryId: '', name: '' };
+    this.cancelAction('categorias');
   }
 
   async setSubcategoryStatus(category: Category, subcategory: Category['subcategories'][number], isActive: boolean) {
@@ -589,12 +681,13 @@ export class AppComponent implements OnInit {
       occurredOn: transaction.occurredOn.slice(0, 10),
       notes: transaction.notes ?? '',
     };
-    this.render();
+    this.openAction(`/lancamentos/${transaction.id}/editar`);
   }
 
   cancelTransactionEdit() {
     this.editingTransactionId = undefined;
     this.transactionForm = { sourceType: 'ACCOUNT', accountId: this.overview?.accounts[0]?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
+    this.cancelAction('lancamentos');
   }
 
   async deleteTransaction(transactionId: string) {
@@ -616,6 +709,7 @@ export class AppComponent implements OnInit {
       await this.api.createTransfer(this.activeHousehold!.id, { ...this.transferForm, amount: Math.round(this.transferForm.amount * 100), description: this.transferForm.description || undefined });
       this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
       await this.loadDashboard();
+      await this.router.navigateByUrl('/transferencias');
     });
   }
 
@@ -632,6 +726,7 @@ export class AppComponent implements OnInit {
       const contentBase64 = await this.readAsBase64(this.importForm.file!);
       this.importPreview = await this.api.previewImport(this.activeHousehold!.id, { fileName: this.importForm.file!.name, contentBase64, mapping: {}, accountId: this.importForm.accountId || undefined });
       this.importBatches = await this.api.importBatches(this.activeHousehold!.id);
+      await this.router.navigateByUrl('/importacoes');
     });
   }
 
@@ -647,7 +742,7 @@ export class AppComponent implements OnInit {
 
   private async loadDashboard() {
     if (!this.activeHousehold) return;
-    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.budgetMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
+    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id, this.referenceMonth), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.referenceMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
     this.overview = overview;
     this.accounts = accounts;
     this.cards = cards;
@@ -661,6 +756,7 @@ export class AppComponent implements OnInit {
     await this.loadTransactions();
     if (!this.transactionForm.accountId) this.transactionForm.accountId = this.overview.accounts[0]?.id ?? '';
     if (!this.importForm.accountId) this.importForm.accountId = this.overview.accounts[0]?.id ?? '';
+    this.hydrateActionFromPath(this.router.url.split('?')[0]);
   }
 
   private async loadTransactions() {
@@ -694,18 +790,49 @@ export class AppComponent implements OnInit {
 
   private syncViewFromUrl(url: string) {
     const path = url.split('?')[0];
-    const view = path === '/contas' ? 'accounts'
-      : path === '/cartoes' ? 'cards'
-      : path === '/categorias' ? 'categories'
-      : path === '/lancamentos' ? 'transactions'
-          : path === '/recorrencias' ? 'recurrences'
-          : path === '/orcamento' ? 'budget'
-          : path === '/metas' ? 'goals'
-          : path === '/transferencias' ? 'transfers'
-          : path === '/importacoes' ? 'imports'
+    const view = path === '/configuracoes/perfil' ? 'profile'
+      : path === '/configuracoes/grupo' ? 'group'
+      : path.startsWith('/contas') ? 'accounts'
+      : path.startsWith('/cartoes') ? 'cards'
+      : path.startsWith('/categorias') ? 'categories'
+      : path.startsWith('/lancamentos') ? 'transactions'
+          : path.startsWith('/recorrencias') ? 'recurrences'
+          : path.startsWith('/orcamento') ? 'budget'
+          : path.startsWith('/metas') ? 'goals'
+          : path.startsWith('/transferencias') ? 'transfers'
+          : path.startsWith('/importacoes') ? 'imports'
           : 'overview';
     this.activeView = view;
+    if (view === 'group' && this.activeHousehold) this.groupName = this.activeHousehold.name;
+    this.hydrateActionFromPath(path);
     this.render();
+  }
+
+  /** Restores an edit form when an action URL is opened directly or refreshed. */
+  private hydrateActionFromPath(path: string) {
+    const match = path.match(/^\/(contas|cartoes|lancamentos|categorias)(?:\/subcategorias)?\/([^/]+)\/editar$/);
+    if (!match) return;
+    const [, domain, id] = match;
+    if (domain === 'contas' && id !== this.editingAccountId) {
+      const account = this.accounts.find((item) => item.id === id);
+      if (account) { this.editingAccountId = account.id; this.accountForm = { name: account.name, type: account.type, bankName: account.bankName ?? '', bankLogoUrl: bankLogoUrlFor(account.bankName, account.bankLogoUrl) ?? '', initialBalance: account.initialBalance / 100 }; }
+    } else if (domain === 'cartoes' && id !== this.editingCardId) {
+      const card = this.cards.find((item) => item.id === id);
+      if (card) { this.editingCardId = card.id; this.cardForm = { name: card.name, issuerName: card.issuerName ?? '', issuerLogoUrl: bankLogoUrlFor(card.issuerName, card.issuerLogoUrl) ?? '', network: card.network, lastFour: card.lastFour ?? '', creditLimit: card.creditLimit === undefined ? null : card.creditLimit / 100, closingDay: card.closingDay, dueDay: card.dueDay }; }
+    } else if (domain === 'lancamentos' && id !== this.editingTransactionId) {
+      const transaction = this.transactions.find((item) => item.id === id);
+      if (transaction) { this.editingTransactionId = transaction.id; this.transactionForm = { sourceType: transaction.account ? 'ACCOUNT' : 'CARD', accountId: transaction.account?.id ?? '', cardId: transaction.card?.id ?? '', subcategoryId: transaction.subcategory.id, type: transaction.type, amount: transaction.amount / 100, description: transaction.description, occurredOn: transaction.occurredOn.slice(0, 10), notes: transaction.notes ?? '' }; }
+    } else if (domain === 'categorias') {
+      const category = this.categories.find((item) => item.id === id);
+      const subcategory = this.categories.flatMap((item) => item.subcategories.map((sub) => ({ category: item, sub }))).find((item) => item.sub.id === id);
+      if (subcategory && id !== this.editingSubcategoryId) { this.editingSubcategoryId = id; this.subcategoryForm = { categoryId: subcategory.category.id, name: subcategory.sub.name }; }
+      else if (category && id !== this.editingCategoryId) { this.editingCategoryId = id; this.categoryForm = { name: category.name, type: category.type, color: category.color, icon: category.icon }; }
+    }
+  }
+
+  private monthEnd(month: string) {
+    const [year, monthIndex] = month.split('-').map(Number);
+    return `${year}-${String(monthIndex).padStart(2, '0')}-${String(new Date(Date.UTC(year, monthIndex, 0)).getUTCDate()).padStart(2, '0')}`;
   }
 
   private readAsBase64(file: File) {
