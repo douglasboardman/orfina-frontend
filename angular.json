@@ -13,13 +13,15 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "src/main.ts",
+            "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "assets": [{ "glob": "**/*", "input": "public" }],
             "styles": ["src/styles.css"]
           },
           "configurations": { "production": { "outputHashing": "all", "fileReplacements": [{ "replace": "src/environments/environment.ts", "with": "src/environments/environment.production.ts" }], "budgets": [{ "type": "initial", "maximumWarning": "500kB", "maximumError": "1MB" }] } }
         },
-        "serve": { "builder": "@angular/build:dev-server", "configurations": { "production": { "buildTarget": "orfina-frontend:build:production" }, "development": { "buildTarget": "orfina-frontend:build" } }, "defaultConfiguration": "development" }
+        "serve": { "builder": "@angular/build:dev-server", "configurations": { "production": { "buildTarget": "orfina-frontend:build:production" }, "development": { "buildTarget": "orfina-frontend:build" } }, "defaultConfiguration": "development" },
+        "test": { "builder": "@angular/build:unit-test", "options": { "buildTarget": "orfina-frontend:build", "tsConfig": "tsconfig.spec.json", "runner": "vitest", "watch": false } }
       }
     }
   },

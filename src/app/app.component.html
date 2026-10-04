@@ -1,18 +1,10 @@
 <main>
   <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
-  <header class="topbar">
-    <div class="topbar-start">
-      <button *ngIf="authenticated" class="icon-button menu-toggle" type="button" (click)="toggleSidebar()" [attr.aria-expanded]="sidebarOpen" aria-controls="main-navigation" aria-label="Abrir menu principal"><app-icon name="menu" /></button>
-      <a class="brand" href="/" aria-label="Orfina, início"><span>or</span>fina</a>
-    </div>
-    <div class="topbar-actions">
-      <button *ngIf="authenticated" class="user-trigger" type="button" (click)="toggleUserMenu()" [attr.aria-expanded]="userMenuOpen" aria-haspopup="menu"><span class="avatar">{{ userInitial }}</span><span class="user-trigger-name">{{ userName }}</span><app-icon name="chevronDown" /></button>
-    </div>
-  </header>
+  <app-topbar [authenticated]="authenticated" [sidebarOpen]="sidebarOpen" [userMenuOpen]="userMenuOpen" [userInitial]="userInitial" [userName]="userName" (menuToggle)="toggleSidebar()" (userMenuToggle)="toggleUserMenu()" />
 
   <section *ngIf="!authenticated" class="landing">
     <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>
-    <p class="eyebrow">ORçamento e FINAnças</p>
+    <p class="eyebrow">Orçamento e Finanças</p>
     <h1>Seu dinheiro, mais tranquilo.</h1>
     <p>Organize a vida financeira da sua família em um só lugar, com privacidade e clareza.</p>
     <button class="google-button" type="button" (click)="signIn()">Continuar com Google</button>
@@ -20,40 +12,10 @@
 
   <section *ngIf="authenticated" class="workspace">
     <button *ngIf="sidebarOpen" class="sidebar-scrim" type="button" (click)="toggleSidebar()" aria-label="Fechar menu"></button>
-    <aside id="main-navigation" class="app-sidebar" [class.open]="sidebarOpen" aria-label="Navegação principal">
-      <p class="sidebar-title">Navegação</p>
-      <nav>
-        <button class="nav-item" [class.active]="activeView === 'overview'" [attr.aria-current]="activeView === 'overview' ? 'page' : null" type="button" title="Visão geral" (click)="selectView('overview')"><app-icon name="overview" /><span>Visão geral</span></button>
-        <button class="nav-item" [class.active]="activeView === 'accounts'" [attr.aria-current]="activeView === 'accounts' ? 'page' : null" type="button" title="Contas" (click)="selectView('accounts')"><app-icon name="accounts" /><span>Contas</span></button>
-        <button class="nav-item" [class.active]="activeView === 'cards'" [attr.aria-current]="activeView === 'cards' ? 'page' : null" type="button" title="Cartões" (click)="selectView('cards')"><app-icon name="cards" /><span>Cartões</span></button>
-        <button class="nav-item" [class.active]="activeView === 'recurrences'" [attr.aria-current]="activeView === 'recurrences' ? 'page' : null" type="button" title="Recorrências" (click)="selectView('recurrences')"><app-icon name="recurring" /><span>Recorrências</span></button>
-        <button class="nav-item" [class.active]="activeView === 'budget'" [attr.aria-current]="activeView === 'budget' ? 'page' : null" type="button" title="Orçamento" (click)="selectView('budget')"><app-icon name="budget" /><span>Orçamento</span></button>
-        <button class="nav-item" [class.active]="activeView === 'goals'" [attr.aria-current]="activeView === 'goals' ? 'page' : null" type="button" title="Metas" (click)="selectView('goals')"><app-icon name="goals" /><span>Metas</span></button>
-        <button class="nav-item" [class.active]="activeView === 'transactions'" [attr.aria-current]="activeView === 'transactions' ? 'page' : null" type="button" title="Lançamentos" (click)="selectView('transactions')"><app-icon name="transactions" /><span>Lançamentos</span></button>
-        <button class="nav-item" [class.active]="activeView === 'transfers'" [attr.aria-current]="activeView === 'transfers' ? 'page' : null" type="button" title="Transferências" (click)="selectView('transfers')"><app-icon name="transfers" /><span>Transferências</span></button>
-        <button class="nav-item" [class.active]="activeView === 'imports'" [attr.aria-current]="activeView === 'imports' ? 'page' : null" type="button" title="Importações" (click)="selectView('imports')"><app-icon name="imports" /><span>Importações</span></button>
-        <button class="nav-item" [class.active]="activeView === 'categories'" [attr.aria-current]="activeView === 'categories' ? 'page' : null" type="button" title="Categorias" (click)="selectView('categories')"><app-icon name="categories" /><span>Categorias</span></button>
-      </nav>
-      <small class="backend-version" [attr.aria-label]="backendVersion ? 'Versão ' + backendVersion : null">{{ backendVersion ? 'v.' + backendVersion : '' }}</small>
-      <footer class="sidebar-footer">
-        <button type="button" class="nav-item" (click)="switchTheme()" [attr.aria-label]="theme === 'dark' ? 'Ativar modo claro' : 'Ativar modo escuro'"><app-icon name="theme" /><span>{{ theme === 'dark' ? 'Modo claro' : 'Modo escuro' }}</span></button>
-        <button type="button" class="nav-item" (click)="signOut()" aria-label="Sair"><app-icon name="logout" /><span>Sair</span></button>
-      </footer>
-    </aside>
+    <app-sidebar [activeView]="activeView" [backendVersion]="backendVersion" [open]="sidebarOpen" [theme]="theme" (navigate)="selectView($event)" (themeToggle)="switchTheme()" (signOut)="signOut()" />
 
     <div class="content-shell">
-      <div *ngIf="userMenuOpen" class="user-menu">
-        <div class="user-menu-heading"><span class="avatar large">{{ userInitial }}</span><div><strong>{{ userName }}</strong><small>Conta Google conectada</small></div></div>
-        <button type="button" class="user-menu-item" (click)="openAction('/configuracoes/perfil'); userMenuOpen = false">Perfil e preferências</button>
-        <div class="user-menu-section">
-          <p class="eyebrow">GRUPO FAMILIAR</p>
-          <select [ngModel]="activeHousehold?.id" (ngModelChange)="selectHousehold($event); userMenuOpen = false" aria-label="Selecionar grupo familiar"><option *ngFor="let household of households" [value]="household.id">{{ household.name }}</option></select>
-          <button class="user-menu-item manage-group-button" type="button" (click)="createHouseholdFromDialog()">Criar grupo familiar</button>
-          <button *ngIf="canManageActiveHousehold" class="user-menu-item manage-group-button" type="button" (click)="openAction('/configuracoes/grupo'); userMenuOpen = false">Configurar grupo</button>
-          <div *ngIf="myHouseholdInvitations.length" class="received-invitations"><p class="eyebrow">CONVITES RECEBIDOS</p><div *ngFor="let invitation of myHouseholdInvitations" class="invitation-row"><span>{{ invitation.household?.name }}<small>{{ invitation.role === 'VIEWER' ? 'Somente leitura' : 'Pode lançar' }}</small></span><button type="button" (click)="acceptHouseholdInvitation(invitation)" [disabled]="loading">Aceitar</button></div></div>
-        </div>
-        <button type="button" class="user-menu-item danger" (click)="signOut()">Sair</button>
-      </div>
+      <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [activeHousehold]="activeHousehold" [households]="households" [invitations]="myHouseholdInvitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="openAction('/configuracoes/perfil'); userMenuOpen = false" (householdSelected)="selectHousehold($event); userMenuOpen = false" (createHousehold)="createHouseholdFromDialog()" (configureGroup)="openAction('/configuracoes/grupo'); userMenuOpen = false" (acceptInvitation)="acceptHouseholdInvitation($event)" (signOut)="signOut()" />
 
       <div class="content" *ngIf="activeHousehold; else welcome" aria-busy="loading">
       <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>

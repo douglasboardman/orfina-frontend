@@ -26,11 +26,12 @@ main { min-height: 100vh; background: var(--bg); color: var(--ink); }
 @media (max-width: 540px) { .topbar { height: 60px; }.workspace { min-height: calc(100vh - 60px); }.brand { font-size: 23px; }.heading { align-items: flex-start; flex-direction: column; gap: 8px; }.heading-actions { width: 100%; justify-content: space-between; }.period-selector { align-items: end; flex-wrap: wrap; }.landing { margin: 8vh auto; }.landing h1 { letter-spacing: -2.5px; }.balance-card strong { font-size: 30px; }.transaction { grid-template-columns: 9px 1fr 30px; }.transaction b { grid-column: 2; }.transaction-delete { grid-column: 3; grid-row: 1 / span 2; }.content-shell { padding-top: 20px; }.user-menu { right: 12px; top: 10px; } }
 
 /* Delivery 7 layout primitives and responsive rhythm. */
-.topbar { height: var(--topbar-height); padding-inline: max(var(--gutter), calc((100vw - var(--content-max)) / 2)); }
+.topbar { height: var(--topbar-height); padding-inline-start: max(var(--gutter), calc((100vw - var(--content-max)) / 2)); padding-inline-end: calc(max(0px, calc((100vw - var(--content-max)) / 2)) + var(--gutter)); }
 .workspace { max-width: var(--content-max); min-height: calc(100vh - var(--topbar-height)); }
 .topbar { position:sticky; top:0; }
 .app-sidebar { position:sticky; top:var(--topbar-height); align-self:flex-start; height:calc(100vh - var(--topbar-height)); max-height:calc(100vh - var(--topbar-height)); }
 .content-shell { padding: var(--space-4) var(--gutter) var(--space-12); }
+.user-menu { right: var(--gutter); }
 .heading { min-height: 84px; align-items: flex-start; gap: var(--space-4); margin-bottom: var(--space-6); }
 .heading h1 { margin: 0; font-size: clamp(1.75rem, 3vw, 2.25rem); letter-spacing: -1.5px; line-height: 1.15; }
 .page-context { color: var(--muted); margin: var(--space-1) 0 0; font-size: .875rem; text-transform: capitalize; }

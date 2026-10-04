@@ -9,20 +9,24 @@ import { EmptyStateComponent } from './ui/empty-state.component';
 import { FeedbackBannerComponent } from './ui/feedback-banner.component';
 import { AppIconComponent } from './ui/app-icon.component';
 import { DrawerComponent } from './ui/drawer.component';
+import { SessionStore } from './core/session.store';
+import { UiStore } from './core/ui.store';
+import { HouseholdContextStore } from './core/household-context.store';
+import { SidebarComponent } from './layout/sidebar.component';
+import { TopbarComponent } from './layout/topbar.component';
+import { UserMenuComponent } from './layout/user-menu.component';
+import { NavigableWorkspaceView, WorkspaceView } from './layout/workspace-view';
 
 @Component({
   selector: 'app-root',
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, RouterOutlet, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, RouterOutlet, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent, TopbarComponent, SidebarComponent, UserMenuComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.css',
 })
 export class AppComponent implements OnInit {
-  theme: Theme = (localStorage.getItem('orfina.theme') as Theme) || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-  households: Household[] = [];
   householdMembers: HouseholdMember[] = [];
   householdInvitations: HouseholdInvitation[] = [];
   myHouseholdInvitations: HouseholdInvitation[] = [];
-  activeHousehold?: Household;
   overview?: Overview;
   accounts: Account[] = [];
   cards: Card[] = [];
@@ -40,15 +44,11 @@ export class AppComponent implements OnInit {
   transactionTotal = 0;
   transactionPage = 1;
   readonly transactionPageSize = 20;
-  currentUser?: { id: string; email: string; name: string };
   error = '';
   loading = false;
   backendVersion?: string;
-  referenceMonth = new Date().toISOString().slice(0, 7);
-  sidebarOpen = localStorage.getItem('orfina.sidebar-open') === 'true';
-  userMenuOpen = false;
   householdManagementOpen = false;
-  activeView: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports' | 'profile' | 'group' = 'overview';
+  activeView: WorkspaceView = 'overview';
   readonly brazilianBanks = brazilianBanks;
   readonly cardNetworks = cardNetworks;
   householdName = '';
@@ -114,7 +114,14 @@ export class AppComponent implements OnInit {
   transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
   importForm: { accountId: string; file?: File } = { accountId: '' };
 
-  constructor(private readonly api: ApiService, private readonly changeDetector: ChangeDetectorRef, private readonly router: Router) {}
+  constructor(
+    private readonly api: ApiService,
+    private readonly changeDetector: ChangeDetectorRef,
+    private readonly router: Router,
+    private readonly session: SessionStore,
+    private readonly ui: UiStore,
+    private readonly householdContext: HouseholdContextStore,
+  ) {}
 
   ngOnInit() {
     document.documentElement.dataset['theme'] = this.theme;
@@ -125,7 +132,20 @@ export class AppComponent implements OnInit {
     void this.initialize();
   }
 
-  get authenticated() { return Boolean(this.currentUser); }
+  get theme() { return this.ui.theme(); }
+  set theme(theme: Theme) { this.ui.setTheme(theme); }
+  get sidebarOpen() { return this.ui.sidebarOpen(); }
+  set sidebarOpen(open: boolean) { this.ui.setSidebarOpen(open); }
+  get userMenuOpen() { return this.ui.userMenuOpen(); }
+  set userMenuOpen(open: boolean) { this.ui.setUserMenuOpen(open); }
+  get households() { return this.householdContext.households(); }
+  set households(households: Household[]) { this.householdContext.setHouseholds(households); }
+  get activeHousehold() { return this.householdContext.activeHousehold(); }
+  set activeHousehold(household: Household | undefined) { this.householdContext.setActiveHousehold(household); }
+  get referenceMonth() { return this.householdContext.referenceMonth(); }
+  set referenceMonth(referenceMonth: string) { this.householdContext.setReferenceMonth(referenceMonth); }
+  get currentUser() { return this.session.user(); }
+  get authenticated() { return this.session.authenticated(); }
   get canManageActiveHousehold() {
     const role = this.activeHousehold?.members[0]?.role;
     return role === 'OWNER' || role === 'ADMIN';
@@ -184,42 +204,41 @@ export class AppComponent implements OnInit {
   bankLogoUrl(bankName?: string, fallback?: string) { return bankLogoUrlFor(bankName, fallback); }
 
   switchTheme() {
-    this.theme = this.theme === 'dark' ? 'light' : 'dark';
-    localStorage.setItem('orfina.theme', this.theme);
+    this.ui.toggleTheme();
     document.documentElement.dataset['theme'] = this.theme;
     this.render();
   }
 
   toggleSidebar() {
-    this.sidebarOpen = !this.sidebarOpen;
-    if (!matchMedia('(max-width: 860px)').matches) localStorage.setItem('orfina.sidebar-open', String(this.sidebarOpen));
+    this.ui.setSidebarOpen(!this.sidebarOpen, !matchMedia('(max-width: 860px)').matches);
     this.render();
   }
 
   toggleUserMenu() {
-    this.userMenuOpen = !this.userMenuOpen;
+    this.ui.toggleUserMenu();
     this.render();
   }
 
-  selectView(view: 'overview' | 'accounts' | 'cards' | 'categories' | 'transactions' | 'recurrences' | 'budget' | 'goals' | 'transfers' | 'imports') {
+  selectView(view: NavigableWorkspaceView) {
     this.activeView = view;
-    if (matchMedia('(max-width: 860px)').matches) this.sidebarOpen = false;
-    this.userMenuOpen = false;
+    if (matchMedia('(max-width: 860px)').matches) this.ui.setSidebarOpen(false);
+    this.ui.closeUserMenu();
     void this.router.navigateByUrl({ overview: '/visao-geral', accounts: '/contas', cards: '/cartoes', categories: '/categorias', transactions: '/lancamentos', recurrences: '/recorrencias', budget: '/orcamento', goals: '/metas', transfers: '/transferencias', imports: '/importacoes' }[view]);
     this.render();
   }
 
-  signIn() { location.assign('http://localhost:3000/api/auth/google'); }
+  signIn() {
+    this.error = '';
+    this.session.beginGoogleSignIn();
+  }
   async signOut() {
     this.loading = true;
     this.error = '';
 
     try {
-      await this.api.logout();
+      await this.session.logout();
       localStorage.removeItem('orfina.active-household');
-      this.currentUser = undefined;
-      this.households = [];
-      this.activeHousehold = undefined;
+      this.householdContext.clear();
       this.overview = undefined;
       this.accounts = [];
       this.cards = [];
@@ -229,9 +248,9 @@ export class AppComponent implements OnInit {
       this.householdMembers = [];
       this.householdInvitations = [];
       this.myHouseholdInvitations = [];
-      this.userMenuOpen = false;
+      this.ui.closeUserMenu();
       this.householdManagementOpen = false;
-      this.sidebarOpen = false;
+      this.ui.setSidebarOpen(false);
       this.activeView = 'overview';
       await this.router.navigateByUrl('/visao-geral');
     } catch (error: unknown) {
@@ -246,10 +265,10 @@ export class AppComponent implements OnInit {
 
   async initialize() {
     try {
-      this.currentUser = await this.api.me();
+      const restored = await this.session.restore();
+      if (!restored) return;
       this.changeDetector.detectChanges();
     } catch (error: unknown) {
-      this.currentUser = undefined;
       this.error = error instanceof Error ? `Não foi possível restaurar a sessão (${error.message})` : 'Não foi possível restaurar a sessão.';
       return;
     }
