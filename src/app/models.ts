@@ -13,11 +13,11 @@ export interface CardStatement { id: string; cardId: string; cycleStart: string;
 export interface InstallmentPurchase { id: string; cardId: string; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string; canceledAt?: string; card: Card; transactions: { id: string; installmentNumber?: number; amount: number; statement?: { status: CardStatementStatus } }[]; }
 export type RecurringRuleStatus = 'ACTIVE' | 'PAUSED' | 'ENDED';
 export interface RecurringRule { id: string; accountId?: string; cardId?: string; amount: number; description: string; type: TransactionType; startOn: string; endOn?: string; status: RecurringRuleStatus; account?: Account; card?: Card; category: Category; subcategory: Subcategory; }
-export interface Subcategory { id: string; name: string; categoryId: string; isActive: boolean; }
+export interface Subcategory { id: string; name: string; categoryId: string; isDefault: boolean; isActive: boolean; }
 export interface Category { id: string; name: string; type: TransactionType; color: string; icon: string; isActive: boolean; subcategories: Subcategory[]; }
 export type TransactionStatus = 'PENDING' | 'POSTED' | 'DISCARDED';
 export type AccountTransferStatus = TransactionStatus;
-export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; notes?: string; account?: Account; card?: Card; category: Category; subcategory: Subcategory; }
+export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; notes?: string; account?: Account; card?: Card; subcategory: Subcategory & { category: Category }; }
 export interface TransactionFilters { page?: number; pageSize?: number; from?: string; to?: string; accountId?: string; cardId?: string; statementId?: string; recurringRuleId?: string; categoryId?: string; subcategoryId?: string; type?: TransactionType; status?: TransactionStatus; importBatchId?: string; }
 export interface TransactionPage { items: Transaction[]; total: number; page: number; pageSize: number; }
 export interface Overview {

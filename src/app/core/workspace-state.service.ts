@@ -677,6 +677,7 @@ export class WorkspaceState implements OnInit {
   }
 
   editSubcategory(category: Category, subcategory: Category['subcategories'][number]) {
+    if (subcategory.isDefault) { this.editCategory(category); return; }
     this.editingSubcategoryId = subcategory.id;
     this.subcategoryForm = { categoryId: category.id, name: subcategory.name };
     this.openAction(`/categorias/subcategorias/${subcategory.id}/editar`);
@@ -689,7 +690,7 @@ export class WorkspaceState implements OnInit {
   }
 
   async setSubcategoryStatus(category: Category, subcategory: Category['subcategories'][number], isActive: boolean) {
-    if (!this.activeHousehold || !confirm(`${isActive ? 'Reativar' : 'Arquivar'} a subcategoria ${subcategory.name}?`)) return;
+    if (subcategory.isDefault || !this.activeHousehold || !confirm(`${isActive ? 'Reativar' : 'Arquivar'} a subcategoria ${subcategory.name}?`)) return;
     await this.run(async () => {
       await this.api.setSubcategoryStatus(this.activeHousehold!.id, subcategory.id, isActive);
       this.categories = await this.api.categories(this.activeHousehold!.id);
@@ -884,6 +885,7 @@ export class WorkspaceState implements OnInit {
     } else if (domain === 'categorias') {
       const category = this.categories.find((item) => item.id === id);
       const subcategory = this.categories.flatMap((item) => item.subcategories.map((sub) => ({ category: item, sub }))).find((item) => item.sub.id === id);
+      if (subcategory?.sub.isDefault) { this.editCategory(subcategory.category); return; }
       if (subcategory && id !== this.editingSubcategoryId) { this.editingSubcategoryId = id; this.subcategoryForm = { categoryId: subcategory.category.id, name: subcategory.sub.name }; }
       else if (category && id !== this.editingCategoryId) { this.editingCategoryId = id; this.categoryForm = { name: category.name, type: category.type, color: category.color, icon: category.icon }; }
     }
