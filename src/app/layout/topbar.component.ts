@@ -7,12 +7,12 @@ import { AppIconComponent } from '../ui/app-icon.component';
   standalone: true,
   imports: [CommonModule, AppIconComponent],
   template: `
-    <header class="topbar" [class.authenticated]="authenticated" [class.sidebar-open]="sidebarOpen">
+    <header class="topbar" [class.authenticated]="authenticated">
       <div class="topbar-start">
-        <button *ngIf="authenticated" class="icon-button menu-toggle" type="button" (click)="menuToggle.emit()" [attr.aria-expanded]="sidebarOpen" aria-controls="main-navigation" [attr.aria-label]="sidebarOpen ? 'Fechar menu principal' : 'Abrir menu principal'" [title]="sidebarOpen ? 'Fechar menu principal' : 'Abrir menu principal'"><app-icon name="menu" /></button>
         <a class="brand" href="/" aria-label="Orfina, início"><span>or</span>fina</a>
       </div>
       <div class="topbar-actions">
+        <button *ngIf="authenticated" class="mobile-menu-toggle" type="button" (click)="menuToggle.emit()" [attr.aria-expanded]="sidebarOpen" aria-controls="main-navigation" [attr.aria-label]="sidebarOpen ? 'Fechar menu principal' : 'Abrir menu principal'" [title]="sidebarOpen ? 'Fechar menu principal' : 'Abrir menu principal'"><app-icon name="menu" /></button>
         <button *ngIf="authenticated" class="user-trigger" type="button" (click)="userMenuToggle.emit()" [attr.aria-expanded]="userMenuOpen" aria-haspopup="menu"><span class="avatar">{{ userInitial }}</span><span class="user-trigger-name">{{ userName }}</span><app-icon name="chevronDown" /></button>
       </div>
     </header>

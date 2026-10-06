@@ -1,10 +1,10 @@
 import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, Type } from '@angular/core';
 import {
-  LucideArrowDownUp, LucideArrowLeftRight, LucideChevronDown, LucideChevronLeft,
-  LucideChevronRight, LucideCircle, LucideCreditCard, LucideGoal, LucideLandmark,
+  LucideArrowDownLeft, LucideArrowDownUp, LucideArrowLeftRight, LucideArrowUpRight, LucideBadgeDollarSign, LucideChevronDown, LucideChevronLeft,
+  LucideChevronRight, LucideCircle, LucideClock3, LucideCreditCard, LucideGoal, LucideLandmark,
   LucideLayoutDashboard, LucideLogOut, LucideMenu, LucideMoon, LucidePlus,
-  LucideRefreshCcw, LucideTags, LucideUpload, LucideWalletCards, LucideX,
+  LucideReceiptText, LucideRefreshCcw, LucideTags, LucideUpload, LucideWalletCards, LucideX,
 } from '@lucide/angular';
 
 /** Local SVG icon set used by product navigation and status controls. */
@@ -30,7 +30,10 @@ const icons: Record<string, Type<unknown>> = {
   accounts: LucideLandmark, cards: LucideCreditCard, recurring: LucideRefreshCcw,
   budget: LucideWalletCards, goals: LucideGoal, transactions: LucideArrowDownUp,
   transfers: LucideArrowLeftRight, imports: LucideUpload, categories: LucideTags,
+  income: LucideArrowUpRight, expense: LucideArrowDownLeft,
   theme: LucideMoon, logout: LucideLogOut, plus: LucidePlus, sync: LucideRefreshCcw,
+  planned: LucideWalletCards, spent: LucideReceiptText, pending: LucideClock3,
+  available: LucideBadgeDollarSign,
 };
 
 const paths: Record<string, string> = {

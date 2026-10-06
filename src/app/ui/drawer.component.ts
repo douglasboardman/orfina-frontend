@@ -18,8 +18,8 @@ import { AppIconComponent } from './app-icon.component';
   styles: `
     :host { display: contents; }
     .drawer-scrim { position: fixed; z-index: 100; inset: 0; border: 0; background: rgb(17 24 39 / 48%); cursor: default; }
-    .drawer { box-sizing: border-box; position: fixed; z-index: 101; top: 50%; left: 50%; width: min(560px, calc(100vw - 48px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 24px; transform: translate(-50%, -50%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg); }
-    .drawer > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 42px; margin-bottom: 24px; }
+    .drawer { box-sizing: border-box; position: fixed; z-index: 101; top: 50%; left: 50%; width: min(780px, calc(100vw - 48px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 24px; transform: translate(-50%, -50%); background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg); }
+    .drawer > header { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 42px; margin-bottom: 20px; }
     .drawer > header h2 { margin: 0; font-size: 1.25rem; letter-spacing: -.4px; }
     .icon-control { display: inline-grid; flex: 0 0 auto; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 9px; }
     .icon-control:hover { color: var(--brand); border-color: var(--brand); }
