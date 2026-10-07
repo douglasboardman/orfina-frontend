@@ -1,3 +1,4 @@
+import { Subscription } from 'rxjs';
 import { ApplicationRef, Injectable, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { ApiService } from '../api.service';
@@ -114,15 +115,26 @@ export class WorkspaceState implements OnInit {
     private readonly householdContext: HouseholdContextStore,
   ) {}
 
+  private routeSubscription?: Subscription;
+
   ngOnInit() {
     document.documentElement.dataset['theme'] = this.theme;
-    this.router.events.subscribe((event) => {
+    this.routeSubscription = this.router.events.subscribe((event) => {
       if (event instanceof NavigationEnd) this.syncViewFromUrl(event.urlAfterRedirects);
     });
     this.syncViewFromUrl(this.router.url);
     void this.initialize();
   }
 
+  ngOnDestroy() { this.routeSubscription?.unsubscribe(); this.clearFinancialState(); }
+  clearFinancialState() {
+    this.householdContext.clear(); this.overview = undefined; this.accounts = []; this.cards = [];
+    this.categories = []; this.transactions = []; this.cardStatements = []; this.recurringRules = [];
+    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.transfers = [];
+    this.importBatches = []; this.importPreview = undefined; this.householdMembers = []; this.householdInvitations = [];
+    this.myHouseholdInvitations = []; this.quickCreateOpen = false;
+  }
+  get isSystemAdmin() { return this.currentUser?.systemRole === 'SYSTEM_ADMIN'; }
   get theme() { return this.ui.theme(); }
   set theme(theme: Theme) { this.ui.setTheme(theme); }
   get sidebarOpen() { return this.ui.sidebarOpen(); }

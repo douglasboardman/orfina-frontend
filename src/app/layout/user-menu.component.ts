@@ -1,3 +1,4 @@
+import { RouterLink } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -6,11 +7,12 @@ import { Household, HouseholdInvitation } from '../models';
 @Component({
   selector: 'app-user-menu',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   template: `
     <div class="user-menu" role="menu">
       <div class="user-menu-heading"><span class="avatar large">{{ userInitial }}</span><div><strong>{{ userName }}</strong><small>Conta Google conectada</small></div></div>
       <button type="button" class="user-menu-item" (click)="profile.emit()">Perfil e preferências</button>
+      <a *ngIf="isSystemAdmin" class="user-menu-item" routerLink="/admin/acessos">Administração do sistema</a>
       <div class="user-menu-section">
         <p class="eyebrow">GRUPO FAMILIAR</p>
         <select [ngModel]="activeHousehold?.id" (ngModelChange)="householdSelected.emit($event)" aria-label="Selecionar grupo familiar"><option *ngFor="let household of households" [value]="household.id">{{ household.name }}</option></select>
@@ -25,6 +27,7 @@ import { Household, HouseholdInvitation } from '../models';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class UserMenuComponent {
+  @Input() isSystemAdmin = false;
   @Input({ required: true }) userInitial = '';
   @Input({ required: true }) userName = '';
   @Input() activeHousehold?: Household;

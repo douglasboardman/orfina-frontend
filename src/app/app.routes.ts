@@ -1,7 +1,7 @@
 import { Routes } from '@angular/router';
 const workspacePage = () => import('./workspace-page.component').then((module) => module.WorkspacePageComponent);
 
-export const appRoutes: Routes = [
+export const productRoutes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'visao-geral' },
   { path: 'auth/callback', loadComponent: workspacePage, data: { view: 'overview' } },
   { path: 'visao-geral', loadComponent: workspacePage, data: { view: 'overview' } },
@@ -33,4 +33,11 @@ export const appRoutes: Routes = [
   { path: 'configuracoes/perfil', loadComponent: workspacePage, data: { view: 'profile' } },
   { path: 'configuracoes/grupo', loadComponent: workspacePage, data: { view: 'group' } },
   { path: '**', redirectTo: 'visao-geral' },
+];
+
+export const appRoutes: Routes = [
+  { path: 'admin', loadChildren: () => import('./admin/admin.routes').then((module) => module.adminRoutes) },
+  { path: 'erro-conexao', data: { connectionError: true }, loadComponent: () => import('./admin/access-restricted.component').then((module) => module.AccessRestrictedComponent) },
+  { path: 'acesso-restrito', loadComponent: () => import('./admin/access-restricted.component').then((module) => module.AccessRestrictedComponent) },
+  { path: '', loadComponent: () => import('./product-shell.component').then((module) => module.ProductShellComponent), children: productRoutes },
 ];

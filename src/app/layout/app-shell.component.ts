@@ -37,7 +37,7 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
         <button *ngIf="sidebarOpen" class="sidebar-scrim" type="button" (click)="menuToggle.emit()" aria-label="Fechar menu"></button>
         <app-sidebar [activeView]="activeView" [backendVersion]="backendVersion" [open]="sidebarOpen" [theme]="theme" (menuToggle)="menuToggle.emit()" (navigate)="navigate.emit($event)" (themeToggle)="themeToggle.emit()" (signOut)="signOut.emit()" (quickCreate)="quickCreate.emit()" />
         <div class="content-shell">
-          <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [activeHousehold]="activeHousehold" [households]="households" [invitations]="invitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="profile.emit()" (householdSelected)="householdSelected.emit($event)" (createHousehold)="createHousehold.emit()" (configureGroup)="configureGroup.emit()" (acceptInvitation)="acceptInvitation.emit($event)" (signOut)="signOut.emit()" />
+          <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [isSystemAdmin]="isSystemAdmin" [activeHousehold]="activeHousehold" [households]="households" [invitations]="invitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="profile.emit()" (householdSelected)="householdSelected.emit($event)" (createHousehold)="createHousehold.emit()" (configureGroup)="configureGroup.emit()" (acceptInvitation)="acceptInvitation.emit($event)" (signOut)="signOut.emit()" />
           <ng-content></ng-content>
         </div>
         <app-quick-create-dialog [open]="quickCreateOpen" (close)="quickCreateClose.emit()" (select)="quickCreateSelect.emit($event)" />
@@ -49,6 +49,7 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppShellComponent {
+  @Input() isSystemAdmin = false;
   @Input({ required: true }) authenticated = false;
   @Input({ required: true }) sidebarOpen = false;
   @Input({ required: true }) userMenuOpen = false;

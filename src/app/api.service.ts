@@ -3,11 +3,16 @@ import { Account, AccountTransfer, AccountTransferStatus, BudgetSummary, Card, C
 import { CardNetwork } from './financial-brands';
 import { environment } from '../environments/environment';
 
-const API_URL = (globalThis as typeof globalThis & { ORFINA_API_URL?: string }).ORFINA_API_URL ?? environment.apiUrl;
+export const API_URL = (globalThis as typeof globalThis & { ORFINA_API_URL?: string }).ORFINA_API_URL ?? environment.apiUrl;
+
+export class ApiError extends Error {
+  constructor(readonly status: number, readonly code: string, message: string, readonly issues: { path: string; message: string }[] = [], readonly grantId?: string) { super(`HTTP ${status}: ${message}`); }
+}
+export type SessionUser = { id: string; email: string; name: string; systemRole: 'USER' | 'SYSTEM_ADMIN' };
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
-  async me(): Promise<{ id: string; email: string; name: string }> { return this.request('/auth/me'); }
+  async me(): Promise<SessionUser> { return this.request('/auth/me'); }
   async refreshSession(): Promise<void> { await this.request('/auth/refresh', { method: 'POST' }); }
   async logout(): Promise<void> { await this.request('/auth/logout', { method: 'POST' }); }
 
@@ -76,17 +81,20 @@ export class ApiService {
   async commitImport(id: string, batchId: string, createMissingCategories: boolean): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/commit`, { method: 'POST', body: JSON.stringify({ createMissingCategories }) }); }
   async cancelImport(id: string, batchId: string): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/cancel`, { method: 'POST' }); }
 
-  private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = init.body === undefined ? {} : { 'Content-Type': 'application/json' };
     if (init.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method)) {
-      const csrf = document.cookie.split('; ').find((item) => item.startsWith('orfina_csrf='))?.slice('orfina_csrf='.length);
+      const csrfCookie = document.cookie.split('; ').find((item) => item.startsWith('__Host-orfina_csrf=')) ?? document.cookie.split('; ').find((item) => item.startsWith('orfina_csrf='));
+      const csrf = csrfCookie?.slice(csrfCookie.indexOf('=') + 1);
       if (csrf) headers['X-Orfina-CSRF'] = decodeURIComponent(csrf);
     }
     const response = await fetch(`${API_URL}${path}`, { ...init, credentials: 'include', headers: { ...headers, ...init.headers } });
     if (!response.ok) {
       const body: unknown = await response.json().catch(() => ({}));
       const message = typeof body === 'object' && body && 'message' in body ? String(body.message) : 'Não foi possível concluir a operação.';
-      throw new Error(`HTTP ${response.status}: ${message}`);
+      const detail = body as { code?: string; grantId?: string; issues?: { path: string; message: string }[] };
+      if (response.status === 401 && path !== '/auth/me' && path !== '/auth/logout') window.dispatchEvent(new Event('orfina-session-lost'));
+      throw new ApiError(response.status, detail.code ?? 'REQUEST_FAILED', message, detail.issues, detail.grantId);
     }
     return response.json() as Promise<T>;
   }

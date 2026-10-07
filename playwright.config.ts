@@ -5,8 +5,8 @@ export default defineConfig({
   outputDir: 'output/playwright/test-results',
   timeout: 30_000,
   use: {
-    baseURL: 'http://127.0.0.1:4200',
-    trace: 'retain-on-failure',
+    baseURL: 'http://127.0.0.1:4201',
+    trace: 'off',
     screenshot: 'only-on-failure',
   },
   projects: [
@@ -14,8 +14,8 @@ export default defineConfig({
     { name: 'mobile', use: { browserName: 'chromium', ...devices['iPhone 13'] } },
   ],
   webServer: {
-    command: 'npm run start -- --host 127.0.0.1',
-    url: 'http://127.0.0.1:4200',
+    command: 'npm run start -- --host 127.0.0.1 --port 4201',
+    url: 'http://127.0.0.1:4201',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },

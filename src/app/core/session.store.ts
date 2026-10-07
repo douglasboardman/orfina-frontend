@@ -1,7 +1,7 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { ApiService } from '../api.service';
+import { ApiService, API_URL, SessionUser } from '../api.service';
 
-export type SessionUser = { id: string; email: string; name: string };
+export type { SessionUser } from '../api.service';
 
 @Injectable({ providedIn: 'root' })
 export class SessionStore {
@@ -10,7 +10,9 @@ export class SessionStore {
   readonly user = this.userState.asReadonly();
   readonly authenticated = computed(() => Boolean(this.userState()));
 
-  constructor(private readonly api: ApiService) {}
+  constructor(private readonly api: ApiService) { window.addEventListener('orfina-session-lost', () => this.userState.set(undefined)); }
+
+  clear() { this.userState.set(undefined); }
 
   /** Restores a cookie session. A missing or expired session is an expected anonymous state. */
   async restore(): Promise<boolean> {
@@ -18,8 +20,7 @@ export class SessionStore {
       this.userState.set(await this.api.me());
       return true;
     } catch (error: unknown) {
-      this.userState.set(undefined);
-      if (error instanceof Error && error.message.startsWith('HTTP 401:')) return false;
+      if (error instanceof Error && error.message.startsWith('HTTP 401:')) { this.userState.set(undefined); return false; }
       throw error;
     }
   }
@@ -30,6 +31,6 @@ export class SessionStore {
   }
 
   beginGoogleSignIn() {
-    location.assign('http://localhost:3000/api/auth/google');
+    location.assign(`${API_URL}/auth/google`);
   }
 }

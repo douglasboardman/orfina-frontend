@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appRoutes } from './app.routes';
+import { productRoutes as appRoutes } from './app.routes';
 
 describe('appRoutes', () => {
   it('mounts product URLs through lazy standalone content', () => {
