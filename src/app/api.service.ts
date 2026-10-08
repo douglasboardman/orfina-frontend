@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Account, AccountTransfer, AccountTransferStatus, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringRule, RecurringRuleStatus, SavingsGoal, SavingsGoalStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionStatus, TransactionType } from './models';
+import { Account, AccountTransfer, AccountTransferStatus, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringRuleStatus, SavingsGoal, SavingsGoalStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionStatus, TransactionType } from './models';
 import { CardNetwork } from './financial-brands';
 import { environment } from '../environments/environment';
 
@@ -18,7 +18,7 @@ export class ApiService {
 
   async getHouseholds(): Promise<Household[]> { return this.request('/households'); }
   async createHousehold(name: string): Promise<Household> { return this.request('/households', { method: 'POST', body: JSON.stringify({ name }) }); }
-  async updateHousehold(id: string, data: { name: string }): Promise<Household> { return this.request(`/households/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async updateHousehold(id: string, data: { name?: string; recurringMaterializationMode?: RecurringMaterializationMode; recurringMaterializationValue?: number }): Promise<Household> { return this.request(`/households/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async householdMembers(id: string): Promise<HouseholdMember[]> { return this.request(`/households/${id}/members`); }
   async householdInvitations(id: string): Promise<HouseholdInvitation[]> { return this.request(`/households/${id}/invitations`); }
   async createHouseholdInvitation(id: string, data: { email: string; role: 'MEMBER' | 'VIEWER' }): Promise<HouseholdInvitation> { return this.request(`/households/${id}/invitations`, { method: 'POST', body: JSON.stringify(data) }); }
@@ -42,7 +42,7 @@ export class ApiService {
   async cardStatements(id: string, cardId: string): Promise<CardStatement[]> { return this.request(`/households/${id}/cards/${cardId}/statements`); }
   async closeStatement(id: string, statementId: string): Promise<CardStatement> { return this.request(`/households/${id}/statements/${statementId}/close`, { method: 'POST' }); }
   async payStatement(id: string, statementId: string, data: { accountId: string; amount: number; paidOn: string; idempotencyKey: string }): Promise<void> { await this.request(`/households/${id}/statements/${statementId}/payments`, { method: 'POST', body: JSON.stringify(data) }); }
-  async createInstallmentPurchase(id: string, data: { cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string; notes?: string }): Promise<void> { await this.request(`/households/${id}/installment-purchases`, { method: 'POST', body: JSON.stringify(data) }); }
+  async createInstallmentPurchase(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string; notes?: string }): Promise<void> { await this.request(`/households/${id}/installment-purchases`, { method: 'POST', body: JSON.stringify(data) }); }
   async installmentPurchases(id: string): Promise<InstallmentPurchase[]> { return this.request(`/households/${id}/installment-purchases`); }
   async cancelFutureInstallments(id: string, purchaseId: string): Promise<void> { await this.request(`/households/${id}/installment-purchases/${purchaseId}/cancel-future`, { method: 'POST' }); }
   async recurringRules(id: string): Promise<RecurringRule[]> { return this.request(`/households/${id}/recurring-rules`); }
@@ -71,6 +71,7 @@ export class ApiService {
   }
   async createTransaction(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateTransaction(id: string, transactionId: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string }): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async updateTransactionOccurrence(id: string, transactionId: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes?: string; scope: 'ONE' | 'FOLLOWING' }): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}/occurrence`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async deleteTransaction(id: string, transactionId: string): Promise<void> { await this.request(`/households/${id}/transactions/${transactionId}`, { method: 'DELETE' }); }
   async setTransactionStatus(id: string, transactionId: string, status: TransactionStatus): Promise<Transaction> { return this.request(`/households/${id}/transactions/${transactionId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
   async transfers(id: string): Promise<AccountTransfer[]> { return this.request(`/households/${id}/transfers`); }
@@ -81,7 +82,7 @@ export class ApiService {
   async commitImport(id: string, batchId: string, createMissingCategories: boolean): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/commit`, { method: 'POST', body: JSON.stringify({ createMissingCategories }) }); }
   async cancelImport(id: string, batchId: string): Promise<ImportBatch> { return this.request(`/households/${id}/imports/${batchId}/cancel`, { method: 'POST' }); }
 
-  async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, retriedAfterRefresh = false): Promise<T> {
     const headers: Record<string, string> = init.body === undefined ? {} : { 'Content-Type': 'application/json' };
     if (init.method && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(init.method)) {
       const csrfCookie = document.cookie.split('; ').find((item) => item.startsWith('__Host-orfina_csrf=')) ?? document.cookie.split('; ').find((item) => item.startsWith('orfina_csrf='));
@@ -93,7 +94,13 @@ export class ApiService {
       const body: unknown = await response.json().catch(() => ({}));
       const message = typeof body === 'object' && body && 'message' in body ? String(body.message) : 'Não foi possível concluir a operação.';
       const detail = body as { code?: string; grantId?: string; issues?: { path: string; message: string }[] };
-      if (response.status === 401 && path !== '/auth/me' && path !== '/auth/logout') window.dispatchEvent(new Event('orfina-session-lost'));
+      if (response.status === 401 && !retriedAfterRefresh && path !== '/auth/refresh' && path !== '/auth/logout') {
+        try {
+          await this.request<void>('/auth/refresh', { method: 'POST' }, true);
+          return this.request<T>(path, init, true);
+        } catch { /* The original request reports the definitive failure below. */ }
+      }
+      if (response.status === 401 && path !== '/auth/me' && path !== '/auth/logout' && path !== '/auth/refresh') window.dispatchEvent(new Event('orfina-session-lost'));
       throw new ApiError(response.status, detail.code ?? 'REQUEST_FAILED', message, detail.issues, detail.grantId);
     }
     return response.json() as Promise<T>;

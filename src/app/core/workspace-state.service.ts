@@ -2,13 +2,14 @@ import { Subscription } from 'rxjs';
 import { ApplicationRef, Injectable, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { ApiService } from '../api.service';
-import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
+import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from '../financial-brands';
 import { SessionStore } from './session.store';
 import { UiStore } from './ui.store';
 import { HouseholdContextStore } from './household-context.store';
 import { NavigableWorkspaceView, WorkspaceView } from '../layout/workspace-view';
 import type { QuickCreateKind } from '../ui/quick-create-dialog.component';
+import type { ChipAutocompleteOption } from '../ui/chip-autocomplete.component';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceState implements OnInit {
@@ -20,10 +21,14 @@ export class WorkspaceState implements OnInit {
   cards: Card[] = [];
   cardStatements: CardStatement[] = [];
   selectedCard?: Card;
+  paymentStatement?: CardStatement;
+  paymentAmount = 0;
   recurringRules: RecurringRule[] = [];
   installmentPurchases: InstallmentPurchase[] = [];
   budgetSummary?: BudgetSummary;
   savingsGoals: SavingsGoal[] = [];
+  contributionGoal?: SavingsGoal;
+  contributionAmount = 0;
   transfers: AccountTransfer[] = [];
   importBatches: ImportBatch[] = [];
   importPreview?: ImportBatch;
@@ -45,6 +50,8 @@ export class WorkspaceState implements OnInit {
   readonly cardNetworks = cardNetworks;
   householdName = '';
   groupName = '';
+  recurringMaterializationMode: RecurringMaterializationMode = 'ON_OCCURRENCE_DATE';
+  recurringMaterializationValue = 0;
   readonly categoryIcons = [
     { value: 'sell', label: 'Etiqueta' },
     { value: 'payments', label: 'Dinheiro em espécie' },
@@ -90,7 +97,8 @@ export class WorkspaceState implements OnInit {
   accountForm: { name: string; type: AccountType; bankName: string; bankLogoUrl: string; initialBalance: number } = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
   cardForm: { name: string; issuerName: string; issuerLogoUrl: string; network: CardNetwork; lastFour: string; creditLimit: number | null; closingDay: number; dueDay: number } = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 };
   recurringForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; startOn: string; endOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
-  installmentForm: { cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string } = { cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+  recurrenceCreationKind: 'CONTINUOUS' | 'INSTALLMENT' = 'CONTINUOUS';
+  installmentForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
   budgetMonth = new Date().toISOString().slice(0, 7);
   budgetForm: { categoryId: string; limitAmount: number; notes: string } = { categoryId: '', limitAmount: 0, notes: '' };
   goalForm: { name: string; targetAmount: number; targetDate: string; color: string; icon: string } = { name: '', targetAmount: 0, targetDate: '', color: '#5B5BD6', icon: 'flag' };
@@ -101,6 +109,8 @@ export class WorkspaceState implements OnInit {
   editingCategoryId?: string;
   editingSubcategoryId?: string;
   editingTransactionId?: string;
+  editingOccurrence?: Transaction;
+  occurrenceEditScope: 'ONE' | 'FOLLOWING' = 'ONE';
   transactionForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
   transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
   transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
@@ -129,8 +139,8 @@ export class WorkspaceState implements OnInit {
   ngOnDestroy() { this.routeSubscription?.unsubscribe(); this.clearFinancialState(); }
   clearFinancialState() {
     this.householdContext.clear(); this.overview = undefined; this.accounts = []; this.cards = [];
-    this.categories = []; this.transactions = []; this.cardStatements = []; this.recurringRules = [];
-    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.transfers = [];
+    this.categories = []; this.transactions = []; this.cardStatements = []; this.paymentStatement = undefined; this.recurringRules = [];
+    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.contributionGoal = undefined; this.transfers = [];
     this.importBatches = []; this.importPreview = undefined; this.householdMembers = []; this.householdInvitations = [];
     this.myHouseholdInvitations = []; this.quickCreateOpen = false;
   }
@@ -161,6 +171,26 @@ export class WorkspaceState implements OnInit {
         .filter((subcategory) => subcategory.isActive)
         .map((subcategory) => ({ ...subcategory, category })));
   }
+  get bankSelectionOptions(): ChipAutocompleteOption[] {
+    return this.brazilianBanks.map((bank) => ({ value: bank.name, label: bank.name, logoUrl: bank.logoUrl }));
+  }
+  get categorySelectionOptions(): ChipAutocompleteOption[] {
+    return this.categories
+      .filter((category) => category.isActive)
+      .map((category) => ({
+        value: category.id,
+        label: category.name,
+        detail: category.type === 'EXPENSE' ? 'Despesa' : 'Receita',
+        icon: category.icon,
+        color: category.color,
+      }));
+  }
+  get filteredSubcategorySelectionOptions() { return this.subcategorySelectionOptions(this.filteredSubcategories); }
+  get recurringSubcategorySelectionOptions() { return this.subcategorySelectionOptions(this.recurringSubcategories); }
+  get installmentSubcategorySelectionOptions() { return this.subcategorySelectionOptions(this.installmentSubcategories); }
+  get budgetCategorySelectionOptions(): ChipAutocompleteOption[] {
+    return this.budgetCategories.map((category) => ({ value: category.id, label: category.name, icon: category.icon, color: category.color }));
+  }
   get recurringSubcategories() {
     return this.categories
       .filter((category) => category.isActive && category.type === this.recurringForm.type)
@@ -182,6 +212,16 @@ export class WorkspaceState implements OnInit {
   get filterSubcategories() {
     const category = this.categories.find((item) => item.id === this.transactionFilters.categoryId);
     return category?.subcategories.filter((subcategory) => subcategory.isActive) ?? [];
+  }
+  get filterSubcategorySelectionOptions(): ChipAutocompleteOption[] {
+    const category = this.categories.find((item) => item.id === this.transactionFilters.categoryId);
+    return this.filterSubcategories.map((subcategory) => ({
+      value: subcategory.id,
+      label: subcategory.name,
+      detail: category?.name,
+      icon: category?.icon,
+      color: category?.color,
+    }));
   }
   get displayedAccounts() { return this.activeView === 'accounts' ? this.accounts : this.overview?.accounts ?? []; }
   get viewTitle() {
@@ -230,6 +270,16 @@ export class WorkspaceState implements OnInit {
   get userInitial() { return this.userName.slice(0, 1).toUpperCase(); }
   categoryIconLabel(icon: string) { return this.categoryIcons.find((item) => item.value === icon)?.label ?? icon; }
   bankLogoUrl(bankName?: string, fallback?: string) { return bankLogoUrlFor(bankName, fallback); }
+
+  private subcategorySelectionOptions(items: Array<{ id: string; name: string; isDefault: boolean; category: Category }>): ChipAutocompleteOption[] {
+    return items.map((subcategory) => ({
+      value: subcategory.id,
+      label: subcategory.isDefault ? subcategory.name : `${subcategory.category.name} · ${subcategory.name}`,
+      detail: subcategory.isDefault ? 'Subcategoria genérica' : 'Subcategoria',
+      icon: subcategory.category.icon,
+      color: subcategory.category.color,
+    }));
+  }
 
   switchTheme() {
     this.ui.toggleTheme();
@@ -342,6 +392,8 @@ export class WorkspaceState implements OnInit {
     this.activeHousehold = this.households.find((item) => item.id === id);
     if (this.activeHousehold) {
       this.groupName = this.activeHousehold.name;
+      this.recurringMaterializationMode = this.activeHousehold.recurringMaterializationMode;
+      this.recurringMaterializationValue = this.activeHousehold.recurringMaterializationValue;
       localStorage.setItem('orfina.active-household', id);
       this.householdManagementOpen = false;
       this.householdMembers = [];
@@ -421,6 +473,18 @@ export class WorkspaceState implements OnInit {
       this.households = this.households.map((household) => household.id === updated.id ? updated : household);
       this.activeHousehold = updated;
       this.groupName = updated.name;
+    });
+  }
+
+  async saveRecurringMaterializationSettings() {
+    if (!this.activeHousehold || !this.canManageActiveHousehold) return;
+    const value = this.recurringMaterializationMode === 'ON_OCCURRENCE_DATE' ? 0 : this.recurringMaterializationValue;
+    await this.run(async () => {
+      const updated = await this.api.updateHousehold(this.activeHousehold!.id, { recurringMaterializationMode: this.recurringMaterializationMode, recurringMaterializationValue: value });
+      this.households = this.households.map((household) => household.id === updated.id ? updated : household);
+      this.activeHousehold = updated;
+      this.recurringMaterializationMode = updated.recurringMaterializationMode;
+      this.recurringMaterializationValue = updated.recurringMaterializationValue;
     });
   }
 
@@ -543,14 +607,31 @@ export class WorkspaceState implements OnInit {
     if (!this.activeHousehold) return;
     const accountId = this.accounts.find((account) => account.isActive)?.id;
     if (!accountId) { this.error = 'Cadastre uma conta ativa para pagar a fatura.'; return; }
-    const amountText = prompt('Valor do pagamento (R$):', ((statement.totalAmount - statement.payments.reduce((sum, payment) => sum + payment.amount, 0)) / 100).toFixed(2).replace('.', ','));
-    if (!amountText) return;
-    const amount = Number(amountText.replace(',', '.'));
-    if (!Number.isFinite(amount) || amount <= 0) { this.error = 'Informe um valor de pagamento válido.'; return; }
+    this.paymentStatement = statement;
+    this.paymentAmount = (statement.totalAmount - statement.payments.reduce((sum, payment) => sum + payment.amount, 0)) / 100;
+    this.render();
+  }
+
+  cancelStatementPayment() {
+    this.paymentStatement = undefined;
+    this.paymentAmount = 0;
+    this.render();
+  }
+
+  async submitStatementPayment() {
+    if (!this.activeHousehold || !this.paymentStatement || !Number.isFinite(this.paymentAmount) || this.paymentAmount <= 0) {
+      this.error = 'Informe um valor de pagamento válido.';
+      return;
+    }
+    const accountId = this.accounts.find((account) => account.isActive)?.id;
+    if (!accountId) { this.error = 'Cadastre uma conta ativa para pagar a fatura.'; return; }
+    const statement = this.paymentStatement;
     await this.run(async () => {
-      await this.api.payStatement(this.activeHousehold!.id, statement.id, { accountId, amount: Math.round(amount * 100), paidOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() });
+      await this.api.payStatement(this.activeHousehold!.id, statement.id, { accountId, amount: Math.round(this.paymentAmount * 100), paidOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() });
       if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id);
       await this.loadDashboard();
+      this.paymentStatement = undefined;
+      this.paymentAmount = 0;
     });
   }
 
@@ -572,6 +653,7 @@ export class WorkspaceState implements OnInit {
   }
 
   onInstallmentTypeChange() { this.installmentForm.subcategoryId = ''; }
+  onInstallmentSourceChange() { this.installmentForm.accountId = ''; this.installmentForm.cardId = ''; }
   get installmentSubcategories() {
     return this.categories.filter((category) => category.isActive && category.type === this.installmentForm.type)
       .flatMap((category) => category.subcategories.filter((subcategory) => subcategory.isActive).map((subcategory) => ({ ...subcategory, category })));
@@ -579,10 +661,12 @@ export class WorkspaceState implements OnInit {
   async saveInstallmentPurchase() {
     if (!this.activeHousehold) return;
     await this.run(async () => {
-      await this.api.createInstallmentPurchase(this.activeHousehold!.id, { ...this.installmentForm, totalAmount: Math.round(this.installmentForm.totalAmount * 100) });
-      this.installmentForm = { cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+      const { sourceType, ...form } = this.installmentForm;
+      await this.api.createInstallmentPurchase(this.activeHousehold!.id, { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, totalAmount: Math.round(form.totalAmount * 100) });
+      this.installmentForm = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
       this.installmentPurchases = await this.api.installmentPurchases(this.activeHousehold!.id);
       await this.loadDashboard();
+      await this.router.navigateByUrl(this.activeView === 'recurrences' ? '/recorrencias' : '/cartoes');
     });
   }
   async cancelFutureInstallments(purchase: InstallmentPurchase) {
@@ -630,11 +714,27 @@ export class WorkspaceState implements OnInit {
   }
   async contributeToGoal(goal: SavingsGoal) {
     if (!this.activeHousehold) return;
-    const raw = prompt(`Contribuição para ${goal.name} (R$):`);
-    if (!raw) return;
-    const amount = Number(raw.replace(',', '.'));
-    if (!Number.isFinite(amount) || amount <= 0) { this.error = 'Informe uma contribuição válida.'; return; }
-    await this.run(async () => { await this.api.contributeToGoal(this.activeHousehold!.id, goal.id, { amount: Math.round(amount * 100), occurredOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() }); this.savingsGoals = await this.api.goals(this.activeHousehold!.id); });
+    this.contributionGoal = goal;
+    this.contributionAmount = 0;
+    this.render();
+  }
+  cancelGoalContribution() {
+    this.contributionGoal = undefined;
+    this.contributionAmount = 0;
+    this.render();
+  }
+  async submitGoalContribution() {
+    if (!this.activeHousehold || !this.contributionGoal || !Number.isFinite(this.contributionAmount) || this.contributionAmount <= 0) {
+      this.error = 'Informe uma contribuição válida.';
+      return;
+    }
+    const goal = this.contributionGoal;
+    await this.run(async () => {
+      await this.api.contributeToGoal(this.activeHousehold!.id, goal.id, { amount: Math.round(this.contributionAmount * 100), occurredOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() });
+      this.savingsGoals = await this.api.goals(this.activeHousehold!.id);
+      this.contributionGoal = undefined;
+      this.contributionAmount = 0;
+    });
   }
   async setGoalStatus(goal: SavingsGoal, status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED') {
     if (!this.activeHousehold) return;
@@ -728,12 +828,25 @@ export class WorkspaceState implements OnInit {
     void this.applyTransactionFilters();
   }
 
+  setFilterCategory(categoryId: string) {
+    this.transactionFilters.categoryId = categoryId;
+    this.onFilterCategoryChange();
+  }
+
+  setFilterSubcategory(subcategoryId: string) {
+    this.transactionFilters.subcategoryId = subcategoryId;
+    void this.applyTransactionFilters();
+  }
+
   async saveTransaction() {
     if (!this.activeHousehold) return;
     await this.run(async () => {
       const { sourceType, ...form } = this.transactionForm;
       const data = { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, notes: form.notes || undefined, amount: Math.round(form.amount * 100) };
-      if (this.editingTransactionId) await this.api.updateTransaction(this.activeHousehold!.id, this.editingTransactionId, data);
+      if (this.editingTransactionId) {
+        if (this.occurrenceEditScope === 'FOLLOWING' && (this.editingOccurrence?.installmentPurchaseId || this.editingOccurrence?.recurringRuleId)) await this.api.updateTransactionOccurrence(this.activeHousehold!.id, this.editingTransactionId, { ...data, scope: 'FOLLOWING' });
+        else await this.api.updateTransaction(this.activeHousehold!.id, this.editingTransactionId, data);
+      }
       else await this.api.createTransaction(this.activeHousehold!.id, data);
       this.cancelTransactionEdit();
       await this.loadDashboard();
@@ -742,6 +855,8 @@ export class WorkspaceState implements OnInit {
 
   editTransaction(transaction: Transaction) {
     this.editingTransactionId = transaction.id;
+    this.editingOccurrence = transaction;
+    this.occurrenceEditScope = 'ONE';
     this.transactionForm = {
       sourceType: transaction.card ? 'CARD' : 'ACCOUNT',
       accountId: transaction.account?.id ?? '',
@@ -758,6 +873,8 @@ export class WorkspaceState implements OnInit {
 
   cancelTransactionEdit() {
     this.editingTransactionId = undefined;
+    this.editingOccurrence = undefined;
+    this.occurrenceEditScope = 'ONE';
     this.transactionForm = { sourceType: 'ACCOUNT', accountId: this.overview?.accounts[0]?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
     this.cancelAction('lancamentos');
   }
@@ -893,7 +1010,7 @@ export class WorkspaceState implements OnInit {
       if (card) { this.editingCardId = card.id; this.cardForm = { name: card.name, issuerName: card.issuerName ?? '', issuerLogoUrl: bankLogoUrlFor(card.issuerName, card.issuerLogoUrl) ?? '', network: card.network, lastFour: card.lastFour ?? '', creditLimit: card.creditLimit === undefined ? null : card.creditLimit / 100, closingDay: card.closingDay, dueDay: card.dueDay }; }
     } else if (domain === 'lancamentos' && id !== this.editingTransactionId) {
       const transaction = this.transactions.find((item) => item.id === id);
-      if (transaction) { this.editingTransactionId = transaction.id; this.transactionForm = { sourceType: transaction.account ? 'ACCOUNT' : 'CARD', accountId: transaction.account?.id ?? '', cardId: transaction.card?.id ?? '', subcategoryId: transaction.subcategory.id, type: transaction.type, amount: transaction.amount / 100, description: transaction.description, occurredOn: transaction.occurredOn.slice(0, 10), notes: transaction.notes ?? '' }; }
+      if (transaction) { this.editingTransactionId = transaction.id; this.editingOccurrence = transaction; this.occurrenceEditScope = 'ONE'; this.transactionForm = { sourceType: transaction.account ? 'ACCOUNT' : 'CARD', accountId: transaction.account?.id ?? '', cardId: transaction.card?.id ?? '', subcategoryId: transaction.subcategory.id, type: transaction.type, amount: transaction.amount / 100, description: transaction.description, occurredOn: transaction.occurredOn.slice(0, 10), notes: transaction.notes ?? '' }; }
     } else if (domain === 'categorias') {
       const category = this.categories.find((item) => item.id === id);
       const subcategory = this.categories.flatMap((item) => item.subcategories.map((sub) => ({ category: item, sub }))).find((item) => item.sub.id === id);

@@ -67,18 +67,26 @@ describe('Workspace classification UI', () => {
     expect(detail.textContent).not.toContain('Alimentação');
   });
 
-  it('offers a single required subcategory selector with automatic and specific options', async () => {
+  it('offers one chip autocomplete for selecting automatic and specific subcategories', async () => {
     state['activeView'] = 'transactions';
     state['isActionRoute'] = true;
     state['usesDrawerAction'] = true;
+    state['filteredSubcategorySelectionOptions'] = [
+      { value: 'automatic_1', label: 'Alimentação', detail: 'Subcategoria genérica', icon: 'shopping_cart', color: '#123456' },
+      { value: 'manual_1', label: 'Alimentação · Mercado', detail: 'Subcategoria', icon: 'shopping_cart', color: '#123456' },
+    ];
     const fixture = TestBed.createComponent(WorkspacePageComponent);
     fixture.detectChanges();
     await fixture.whenStable();
     const form = (fixture.nativeElement as HTMLElement).querySelector('.transaction-form')!;
-    const selector = form.querySelector('select[name="transactionSubcategory"]') as HTMLSelectElement;
-    expect(selector.required).toBe(true);
-    expect(Array.from(selector.options).map((option) => option.textContent?.trim())).toEqual(['Selecione uma subcategoria', 'Mercado · Alimentação', 'Mercado · Alimentação · Mercado']);
+    const selector = form.querySelector('app-chip-autocomplete') as HTMLElement;
+    const input = selector.querySelector('input') as HTMLInputElement;
+    input.dispatchEvent(new Event('focus'));
+    fixture.detectChanges();
+    expect(input.getAttribute('aria-label')).toBe('Subcategoria');
+    expect(Array.from(selector.querySelectorAll('[role="option"]')).map((option) => option.textContent?.trim())).toEqual(['shopping_cartAlimentaçãoSubcategoria genérica', 'shopping_cartAlimentação · MercadoSubcategoria']);
     expect(form.querySelector('select[name="transactionCategory"]')).toBeNull();
+    expect(form.querySelector('select[name="transactionSubcategory"]')).toBeNull();
     expect((form.querySelector('button[type="submit"]') as HTMLButtonElement).disabled).toBe(true);
   });
 });

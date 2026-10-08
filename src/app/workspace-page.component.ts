@@ -7,6 +7,8 @@ import { DrawerComponent } from './ui/drawer.component';
 import { EmptyStateComponent } from './ui/empty-state.component';
 import { FeedbackBannerComponent } from './ui/feedback-banner.component';
 import { CardNetworkLogoComponent } from './ui/card-network-logo.component';
+import { CurrencyInputDirective } from './ui/currency-input.directive';
+import { ChipAutocompleteComponent } from './ui/chip-autocomplete.component';
 
 /**
  * Routed content boundary for the current workspace. It deliberately owns no
@@ -18,7 +20,7 @@ import { CardNetworkLogoComponent } from './ui/card-network-logo.component';
 @Component({
   selector: 'app-workspace-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent, CardNetworkLogoComponent],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent, CardNetworkLogoComponent, CurrencyInputDirective, ChipAutocompleteComponent],
   templateUrl: './workspace-page.component.html',
 })
 export class WorkspacePageComponent {
