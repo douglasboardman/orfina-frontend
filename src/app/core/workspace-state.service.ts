@@ -10,6 +10,7 @@ import { HouseholdContextStore } from './household-context.store';
 import { NavigableWorkspaceView, WorkspaceView } from '../layout/workspace-view';
 import type { QuickCreateKind } from '../ui/quick-create-dialog.component';
 import type { ChipAutocompleteOption } from '../ui/chip-autocomplete.component';
+import type { FinancialEntryMode } from '../ui/financial-entry-form.component';
 
 @Injectable({ providedIn: 'root' })
 export class WorkspaceState implements OnInit {
@@ -97,8 +98,10 @@ export class WorkspaceState implements OnInit {
   accountForm: { name: string; type: AccountType; bankName: string; bankLogoUrl: string; initialBalance: number } = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
   cardForm: { name: string; issuerName: string; issuerLogoUrl: string; network: CardNetwork; lastFour: string; creditLimit: number | null; closingDay: number; dueDay: number } = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 };
   recurringForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; startOn: string; endOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
-  recurrenceCreationKind: 'CONTINUOUS' | 'INSTALLMENT' = 'CONTINUOUS';
-  installmentForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; description: string; firstOccurredOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+  transactionCreationMode: FinancialEntryMode = 'ONE_OFF';
+  recurrenceCreationMode: FinancialEntryMode = 'FIXED';
+  cardCreationMode: FinancialEntryMode = 'INSTALLMENT';
+  installmentForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; startInstallmentNumber: number; description: string; firstOccurredOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, startInstallmentNumber: 1, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
   budgetMonth = new Date().toISOString().slice(0, 7);
   budgetForm: { categoryId: string; limitAmount: number; notes: string } = { categoryId: '', limitAmount: 0, notes: '' };
   goalForm: { name: string; targetAmount: number; targetDate: string; color: string; icon: string } = { name: '', targetAmount: 0, targetDate: '', color: '#5B5BD6', icon: 'flag' };
@@ -416,6 +419,11 @@ export class WorkspaceState implements OnInit {
   }
 
   openAction(path: string) { void this.router.navigateByUrl(path); }
+  openCardFinancialEntry() {
+    this.cardCreationMode = 'INSTALLMENT';
+    this.lockFinancialFormsToCard();
+    this.openAction('/cartoes/parcelamentos/nova');
+  }
   cancelAction(view: string) { void this.router.navigateByUrl(`/${view}`); }
   cancelCurrentAction() {
     if (this.activeView === 'accounts') this.cancelAccountEdit();
@@ -637,14 +645,45 @@ export class WorkspaceState implements OnInit {
 
   onRecurringSourceChange() { this.recurringForm.accountId = ''; this.recurringForm.cardId = ''; }
   onRecurringTypeChange() { this.recurringForm.subcategoryId = ''; }
+  setRecurrenceType(type: TransactionType) {
+    if (this.recurringForm.type === type && this.installmentForm.type === type) return;
+    this.recurringForm.type = type;
+    this.installmentForm.type = type;
+    this.onRecurringTypeChange();
+    this.onInstallmentTypeChange();
+  }
+  setFinancialEntryType(context: 'TRANSACTION' | 'RECURRENCE' | 'CARD', type: TransactionType) {
+    this.transactionForm.type = type;
+    this.onTransactionTypeChange();
+    this.setRecurrenceType(type);
+  }
+  setRecurringCreationMode(mode: FinancialEntryMode) {
+    if (mode === 'ONE_OFF') return;
+    this.recurrenceCreationMode = mode;
+  }
+  setTransactionCreationMode(mode: FinancialEntryMode) { this.transactionCreationMode = mode; }
+  setCardCreationMode(mode: FinancialEntryMode) {
+    this.cardCreationMode = mode;
+    this.lockFinancialFormsToCard();
+  }
+  onFinancialSourceChange(mode: FinancialEntryMode) {
+    if (mode === 'FIXED') this.onRecurringSourceChange();
+    else if (mode === 'INSTALLMENT') this.onInstallmentSourceChange();
+    else this.onTransactionSourceChange();
+  }
+  async submitFinancialEntry(context: 'TRANSACTION' | 'RECURRENCE' | 'CARD', mode: FinancialEntryMode) {
+    if (mode === 'ONE_OFF') return this.saveTransaction();
+    if (mode === 'FIXED') return this.saveRecurringRule();
+    return this.saveInstallmentPurchase();
+  }
   async saveRecurringRule() {
     if (!this.activeHousehold) return;
     await this.run(async () => {
       const { sourceType, ...form } = this.recurringForm;
       await this.api.createRecurringRule(this.activeHousehold!.id, { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, amount: Math.round(form.amount * 100), endOn: form.endOn || undefined });
-      this.recurringForm = { sourceType: 'ACCOUNT', accountId: this.accounts.find((account) => account.isActive)?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+      this.recurringForm = { sourceType: 'ACCOUNT', accountId: this.accounts.find((account) => account.isActive)?.id ?? '', cardId: '', subcategoryId: '', type: this.recurringForm.type, amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
       this.recurringRules = await this.api.recurringRules(this.activeHousehold!.id);
-      await this.router.navigateByUrl('/recorrencias');
+      await this.router.navigateByUrl(this.activeView === 'transactions' ? '/lancamentos' : this.activeView === 'cards' ? '/cartoes' : '/recorrencias');
     });
   }
   async setRecurringRuleStatus(rule: RecurringRule, status: 'ACTIVE' | 'PAUSED' | 'ENDED') {
@@ -663,10 +702,10 @@ export class WorkspaceState implements OnInit {
     await this.run(async () => {
       const { sourceType, ...form } = this.installmentForm;
       await this.api.createInstallmentPurchase(this.activeHousehold!.id, { ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, totalAmount: Math.round(form.totalAmount * 100) });
-      this.installmentForm = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
+      this.installmentForm = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: this.installmentForm.type, totalAmount: 0, installmentCount: 2, startInstallmentNumber: 1, description: '', firstOccurredOn: new Date().toISOString().slice(0, 10) };
       this.installmentPurchases = await this.api.installmentPurchases(this.activeHousehold!.id);
       await this.loadDashboard();
-      await this.router.navigateByUrl(this.activeView === 'recurrences' ? '/recorrencias' : '/cartoes');
+      await this.router.navigateByUrl(this.activeView === 'transactions' ? '/lancamentos' : this.activeView === 'recurrences' ? '/recorrencias' : '/cartoes');
     });
   }
   async cancelFutureInstallments(purchase: InstallmentPurchase) {
@@ -854,6 +893,7 @@ export class WorkspaceState implements OnInit {
   }
 
   editTransaction(transaction: Transaction) {
+    this.transactionCreationMode = 'ONE_OFF';
     this.editingTransactionId = transaction.id;
     this.editingOccurrence = transaction;
     this.occurrenceEditScope = 'ONE';
@@ -877,6 +917,12 @@ export class WorkspaceState implements OnInit {
     this.occurrenceEditScope = 'ONE';
     this.transactionForm = { sourceType: 'ACCOUNT', accountId: this.overview?.accounts[0]?.id ?? '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
     this.cancelAction('lancamentos');
+  }
+
+  private lockFinancialFormsToCard() {
+    this.transactionForm.sourceType = 'CARD'; this.transactionForm.accountId = '';
+    this.recurringForm.sourceType = 'CARD'; this.recurringForm.accountId = '';
+    this.installmentForm.sourceType = 'CARD'; this.installmentForm.accountId = '';
   }
 
   async deleteTransaction(transactionId: string) {
@@ -992,6 +1038,9 @@ export class WorkspaceState implements OnInit {
           : path.startsWith('/importacoes') ? 'imports'
           : 'overview';
     this.activeView = view;
+    if (path === '/lancamentos/novo') this.transactionCreationMode = 'ONE_OFF';
+    if (view === 'recurrences' && path.endsWith('/nova')) this.recurrenceCreationMode = 'FIXED';
+    if (path === '/cartoes/parcelamentos/nova') { this.cardCreationMode = 'INSTALLMENT'; this.lockFinancialFormsToCard(); }
     if (view === 'group' && this.activeHousehold) this.groupName = this.activeHousehold.name;
     this.hydrateActionFromPath(path);
     this.render();
@@ -1010,7 +1059,7 @@ export class WorkspaceState implements OnInit {
       if (card) { this.editingCardId = card.id; this.cardForm = { name: card.name, issuerName: card.issuerName ?? '', issuerLogoUrl: bankLogoUrlFor(card.issuerName, card.issuerLogoUrl) ?? '', network: card.network, lastFour: card.lastFour ?? '', creditLimit: card.creditLimit === undefined ? null : card.creditLimit / 100, closingDay: card.closingDay, dueDay: card.dueDay }; }
     } else if (domain === 'lancamentos' && id !== this.editingTransactionId) {
       const transaction = this.transactions.find((item) => item.id === id);
-      if (transaction) { this.editingTransactionId = transaction.id; this.editingOccurrence = transaction; this.occurrenceEditScope = 'ONE'; this.transactionForm = { sourceType: transaction.account ? 'ACCOUNT' : 'CARD', accountId: transaction.account?.id ?? '', cardId: transaction.card?.id ?? '', subcategoryId: transaction.subcategory.id, type: transaction.type, amount: transaction.amount / 100, description: transaction.description, occurredOn: transaction.occurredOn.slice(0, 10), notes: transaction.notes ?? '' }; }
+      if (transaction) { this.transactionCreationMode = 'ONE_OFF'; this.editingTransactionId = transaction.id; this.editingOccurrence = transaction; this.occurrenceEditScope = 'ONE'; this.transactionForm = { sourceType: transaction.account ? 'ACCOUNT' : 'CARD', accountId: transaction.account?.id ?? '', cardId: transaction.card?.id ?? '', subcategoryId: transaction.subcategory.id, type: transaction.type, amount: transaction.amount / 100, description: transaction.description, occurredOn: transaction.occurredOn.slice(0, 10), notes: transaction.notes ?? '' }; }
     } else if (domain === 'categorias') {
       const category = this.categories.find((item) => item.id === id);
       const subcategory = this.categories.flatMap((item) => item.subcategories.map((sub) => ({ category: item, sub }))).find((item) => item.sub.id === id);

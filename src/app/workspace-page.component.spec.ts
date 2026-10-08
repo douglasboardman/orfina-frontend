@@ -33,6 +33,9 @@ describe('Workspace classification UI', () => {
       transactionFilters: {}, accounts: [], cards: [], importBatches: [], filterSubcategories: [],
       filteredSubcategories: category.subcategories.map((subcategory) => ({ ...subcategory, category })),
       transactionForm: { sourceType: 'ACCOUNT', accountId: 'account_1', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 15, description: 'Compra', occurredOn: '2026-10-06', notes: '' },
+      recurringForm: { sourceType: 'ACCOUNT', accountId: 'account_1', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: '2026-10-06', endOn: '' },
+      installmentForm: { sourceType: 'ACCOUNT', accountId: 'account_1', cardId: '', subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, startInstallmentNumber: 1, description: '', firstOccurredOn: '2026-10-06' },
+      transactionCreationMode: 'ONE_OFF', recurrenceCreationMode: 'FIXED', cardCreationMode: 'INSTALLMENT',
       categoryIconLabel: () => 'Mercado',
     };
     TestBed.configureTestingModule({ imports: [WorkspacePageComponent], providers: [{ provide: WorkspaceState, useValue: state }] });
