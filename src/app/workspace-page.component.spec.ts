@@ -27,7 +27,7 @@ describe('Workspace classification UI', () => {
 
   beforeEach(() => {
     state = {
-      activeHousehold: { name: 'Grupo de teste' }, activeView: 'categories', isActionRoute: false,
+      activeHousehold: { name: 'Grupo de teste' }, activeView: 'categories', isActionRoute: false, referenceMonthLabel: 'outubro de 2026',
       categories: [category], displayedCategories: [category], activeCategoryList: [category], expenseCategories: [category], incomeCategories: [], categoryTab: 'EXPENSE', categoryPageCount: 1,
       displayedTransactions: [transaction], transactionTotal: 1, transactionPageCount: 1, currency: 'BRL',
       transactionFilters: {}, accounts: [], cards: [], importBatches: [], filterSubcategories: [],
@@ -68,6 +68,17 @@ describe('Workspace classification UI', () => {
     const detail = (fixture.nativeElement as HTMLElement).querySelector('.transaction small')!;
     expect(detail.textContent).toContain('Mercado · Conta');
     expect(detail.textContent).not.toContain('Alimentação');
+  });
+
+  it('keeps transaction filters scoped to the reference month and offers month navigation', () => {
+    state['activeView'] = 'transactions';
+    state['stepReferenceMonth'] = () => undefined;
+    const fixture = TestBed.createComponent(WorkspacePageComponent);
+    fixture.detectChanges();
+    const filters = (fixture.nativeElement as HTMLElement).querySelector('.transaction-filters')!;
+    expect(filters.textContent).toContain('outubro de 2026');
+    expect(filters.querySelectorAll('[aria-label="Mês anterior"], [aria-label="Próximo mês"]')).toHaveLength(2);
+    expect(filters.querySelectorAll('input[name="filterFrom"], input[name="filterTo"]')).toHaveLength(0);
   });
 
   it('offers one chip autocomplete for selecting automatic and specific subcategories', async () => {

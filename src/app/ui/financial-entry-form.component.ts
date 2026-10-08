@@ -17,12 +17,16 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyInputDirective, ChipAutocompleteComponent],
   template: `
-    <div class="entry-mode-tabs" *ngIf="!editing && context !== 'RECURRENCE'" role="tablist" aria-label="Tipo de lançamento">
+    <div class="entry-mode-tabs" *ngIf="(!editing || allowModeChange) && context !== 'RECURRENCE'" role="tablist" aria-label="Tipo de lançamento">
       <button type="button" role="tab" [class.active]="mode === 'ONE_OFF'" [attr.aria-selected]="mode === 'ONE_OFF'" (click)="modeChange.emit('ONE_OFF')">Avulso</button>
       <button type="button" role="tab" [class.active]="mode === 'FIXED'" [attr.aria-selected]="mode === 'FIXED'" (click)="modeChange.emit('FIXED')">Fixo</button>
       <button type="button" role="tab" [class.active]="mode === 'INSTALLMENT'" [attr.aria-selected]="mode === 'INSTALLMENT'" (click)="modeChange.emit('INSTALLMENT')">Parcelado</button>
     </div>
-    <div class="schedule-type-tabs" role="tablist" aria-label="Tipo financeiro" *ngIf="mode !== 'ONE_OFF'">
+    <div class="entry-type-indicator" *ngIf="editing" aria-label="Tipo do lançamento">
+      <span>Tipo do lançamento</span>
+      <strong>{{ entryType === 'INCOME' ? 'Receita' : 'Despesa' }}</strong>
+    </div>
+    <div class="schedule-type-tabs" *ngIf="!editing" role="tablist" aria-label="Tipo financeiro">
       <button type="button" role="tab" [class.active]="entryType === 'EXPENSE'" [attr.aria-selected]="entryType === 'EXPENSE'" (click)="typeChange.emit('EXPENSE')">Despesa</button>
       <button type="button" role="tab" [class.active]="entryType === 'INCOME'" [attr.aria-selected]="entryType === 'INCOME'" (click)="typeChange.emit('INCOME')">Receita</button>
     </div>
@@ -33,13 +37,13 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
 
     <form class="form-card entry-form" *ngIf="mode === 'ONE_OFF'" (ngSubmit)="submit.emit('ONE_OFF')">
       <label class="field field-wide"><span>Descrição</span><input name="transactionDescription" [(ngModel)]="transactionForm.description" placeholder="Ex.: Compra no mercado" required></label>
-      <div class="two-columns"><label class="field"><span>Tipo</span><select name="transactionType" [(ngModel)]="transactionForm.type" (ngModelChange)="typeChange.emit(transactionForm.type)"><option value="EXPENSE">Despesa</option><option value="INCOME">Receita</option></select></label><label class="field"><span>Valor</span><input appCurrencyInput name="transactionAmount" [(ngModel)]="transactionForm.amount" type="text" inputmode="numeric" required></label></div>
+      <label class="field field-wide"><span>Valor</span><input appCurrencyInput name="transactionAmount" [(ngModel)]="transactionForm.amount" type="text" inputmode="numeric" required></label>
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: transactionForm, prefix: 'transaction', type: transactionForm.type }"></ng-container>
       <label class="field field-wide"><span>Subcategoria</span><app-chip-autocomplete [options]="transactionSubcategories" [value]="transactionForm.subcategoryId" placeholder="Buscar subcategoria" ariaLabel="Subcategoria" (valueChange)="transactionForm.subcategoryId = $event" /></label>
       <label class="field field-wide" *ngIf="showOccurrenceScope"><span>Aplicar alteração</span><select name="occurrenceEditScope" [ngModel]="occurrenceScope" (ngModelChange)="changeOccurrenceScope($event)"><option value="ONE">Somente esta ocorrência</option><option value="FOLLOWING">Esta e as próximas ocorrências</option></select></label>
-      <label class="field"><span>Data</span><input name="transactionDate" [(ngModel)]="transactionForm.occurredOn" type="date" required></label>
+      <label class="field"><span>Data</span><input name="transactionDate" [(ngModel)]="transactionForm.occurredOn" type="date" [attr.disabled]="scheduleFieldsLocked ? 'disabled' : null" required></label>
       <label class="field field-wide"><span>Observações</span><textarea name="transactionNotes" [(ngModel)]="transactionForm.notes" maxlength="1000" placeholder="Opcional"></textarea></label>
-      <button type="submit" [disabled]="loading || !valid(transactionForm)">{{ editing ? 'Salvar alterações' : 'Adicionar lançamento' }}</button>
+      <button type="submit" [disabled]="loading || !validTransaction()">{{ editing ? 'Salvar alterações' : 'Adicionar lançamento' }}</button>
       <button *ngIf="editing" type="button" class="secondary-button" (click)="cancel.emit()">Cancelar</button>
     </form>
 
@@ -49,7 +53,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: recurringForm, prefix: 'recurring', type: recurringForm.type }"></ng-container>
       <label class="field field-wide"><span>Subcategoria</span><app-chip-autocomplete [options]="recurringSubcategories" [value]="recurringForm.subcategoryId" placeholder="Buscar subcategoria" ariaLabel="Subcategoria da recorrência" (valueChange)="recurringForm.subcategoryId = $event" /></label>
       <div class="two-columns"><label class="field"><span>Início</span><input name="recurringStart" [(ngModel)]="recurringForm.startOn" type="date" required></label><label class="field"><span>Fim (opcional)</span><input name="recurringEnd" [(ngModel)]="recurringForm.endOn" type="date"></label></div>
-      <button type="submit" [disabled]="loading || !valid(recurringForm)">Criar recorrência contínua</button>
+      <button type="submit" [disabled]="loading || !validRecurring()">{{ conversionFromTransaction ? 'Converter em recorrência contínua' : 'Criar recorrência contínua' }}</button>
     </form>
 
     <form class="form-card entry-form" *ngIf="mode === 'INSTALLMENT'" (ngSubmit)="submit.emit('INSTALLMENT')">
@@ -58,7 +62,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: installmentForm, prefix: 'installment', type: installmentForm.type }"></ng-container>
       <div class="three-columns"><label class="field"><span>Parcela início</span><input name="installmentStart" [(ngModel)]="installmentForm.startInstallmentNumber" type="number" min="1" [max]="installmentForm.installmentCount" required></label><label class="field"><span>Parcelas</span><input name="installmentCount" [(ngModel)]="installmentForm.installmentCount" type="number" min="2" max="360" required></label><label class="field"><span>Data da ocorrência</span><input name="installmentDate" [(ngModel)]="installmentForm.firstOccurredOn" type="date" required></label></div>
       <label class="field field-wide"><span>Subcategoria</span><app-chip-autocomplete [options]="installmentSubcategories" [value]="installmentForm.subcategoryId" placeholder="Buscar subcategoria" ariaLabel="Subcategoria do parcelamento" (valueChange)="installmentForm.subcategoryId = $event" /></label>
-      <button type="submit" [disabled]="loading || !valid(installmentForm) || installmentForm.startInstallmentNumber > installmentForm.installmentCount">Criar parcelas {{ installmentForm.startInstallmentNumber }} a {{ installmentForm.installmentCount }}</button>
+      <button type="submit" [disabled]="loading || !validInstallment()">{{ conversionFromTransaction ? 'Converter em parcelas' : 'Criar parcelas' }} {{ installmentForm.startInstallmentNumber }} a {{ installmentForm.installmentCount }}</button>
     </form>
 
     <ng-template #sourceFields let-form="form" let-prefix="prefix" let-type="type">
@@ -69,6 +73,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
   styles: `
     :host { display:contents; }
     .entry-mode-tabs,.schedule-type-tabs { display:grid; gap:8px; padding:4px; margin-bottom:12px; border:1px solid var(--line); border-radius:var(--radius-md); background:var(--surface-alt); }.entry-mode-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }.schedule-type-tabs { grid-template-columns:repeat(2,minmax(0,1fr)); }.entry-mode-tabs button,.schedule-type-tabs button { min-height:var(--control-height); border:0; border-radius:var(--radius-sm); padding:0 12px; color:var(--muted); background:transparent; font-weight:750; }.entry-mode-tabs button.active,.schedule-type-tabs button.active { color:var(--brand); background:var(--surface); box-shadow:var(--shadow-sm); }
+    .entry-type-indicator { display:flex; align-items:center; gap:8px; margin-bottom:12px; color:var(--muted); font-size:.8125rem; font-weight:650; }.entry-type-indicator strong { border-radius:999px; padding:4px 9px; color:var(--brand); background:var(--brand-soft); font-size:.75rem; font-weight:750; }
     .quick-create-options { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:16px; }.quick-create-option { min-width:0; min-height:100px; display:grid; align-content:start; gap:4px; border:1px solid var(--line); border-radius:var(--radius-md); padding:16px; text-align:left; color:var(--ink); background:var(--surface); }.quick-create-option:hover { border-color:var(--brand); }.quick-create-option.active { border-color:var(--brand); background:var(--brand-soft); box-shadow:inset 0 0 0 1px var(--brand); }.quick-create-option strong { font-size:.9375rem; }.quick-create-option small { color:var(--muted); font-size:.75rem; line-height:1.4; }.quick-create-option.active strong { color:var(--brand); }
     .form-card { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }.field { display:grid; align-content:start; gap:4px; min-width:0; color:var(--muted); font-size:.8125rem; font-weight:650; }.field-wide { grid-column:1 / -1; }.two-columns { display:contents; }.three-columns { grid-column:1 / -1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; } input,select,textarea { width:100%; min-height:var(--control-height); border:1px solid var(--line); border-radius:8px; color:var(--ink); background:var(--surface-alt); padding:10px; outline:none; } textarea { min-height:76px; resize:vertical; } input:focus,select:focus,textarea:focus { border-color:var(--brand); box-shadow:0 0 0 3px color-mix(in srgb,var(--brand) 16%,transparent); }.form-card button[type='submit'] { grid-column:1 / -1; margin-top:2px; border:0; border-radius:9px; color:#fff; background:var(--brand); padding:12px 16px; font-weight:750; }.form-card button:disabled { opacity:.55; cursor:not-allowed; }.form-card .secondary-button { grid-column:1 / -1; color:var(--ink); background:transparent; border:1px solid var(--line); border-radius:9px; padding:12px 16px; font-weight:750; }
     @media (max-width:540px) { .form-card,.quick-create-options,.three-columns { grid-template-columns:1fr; } }
@@ -80,6 +85,8 @@ export class FinancialEntryFormComponent {
   @Input() entryType: TransactionType = 'EXPENSE';
   @Input() lockSourceToCard = false;
   @Input() editing = false;
+  @Input() allowModeChange = false;
+  @Input() conversionFromTransaction = false;
   @Input() showOccurrenceScope = false;
   @Input() occurrenceScope: 'ONE' | 'FOLLOWING' = 'ONE';
   @Input() loading = false;
@@ -105,5 +112,31 @@ export class FinancialEntryFormComponent {
 
   valid(form: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string }) {
     return Boolean(form.subcategoryId && (this.lockSourceToCard ? form.cardId : form.sourceType === 'ACCOUNT' ? form.accountId : form.cardId));
+  }
+
+  validTransaction() {
+    return this.valid(this.transactionForm) && this.validCommon(this.transactionForm.amount, this.transactionForm.description, this.transactionForm.occurredOn);
+  }
+
+  validRecurring() {
+    return this.valid(this.recurringForm) && this.validCommon(this.recurringForm.amount, this.recurringForm.description, this.recurringForm.startOn);
+  }
+
+  validInstallment() {
+    return this.valid(this.installmentForm)
+      && this.validCommon(this.installmentForm.totalAmount, this.installmentForm.description, this.installmentForm.firstOccurredOn)
+      && Number.isInteger(this.installmentForm.installmentCount)
+      && this.installmentForm.installmentCount >= 2
+      && Number.isInteger(this.installmentForm.startInstallmentNumber)
+      && this.installmentForm.startInstallmentNumber >= 1
+      && this.installmentForm.startInstallmentNumber <= this.installmentForm.installmentCount;
+  }
+
+  get scheduleFieldsLocked() {
+    return this.editing && this.showOccurrenceScope && this.occurrenceScope === 'FOLLOWING';
+  }
+
+  private validCommon(amount: number, description: string, date: string) {
+    return Number.isFinite(amount) && amount > 0 && description.trim().length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(date);
   }
 }

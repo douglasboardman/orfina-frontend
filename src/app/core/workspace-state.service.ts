@@ -1,7 +1,7 @@
 import { Subscription } from 'rxjs';
 import { ApplicationRef, Injectable, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { ApiService } from '../api.service';
+import { ApiError, ApiService } from '../api.service';
 import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from '../financial-brands';
 import { SessionStore } from './session.store';
@@ -439,13 +439,13 @@ export class WorkspaceState implements OnInit {
   }
 
   async viewOverviewCategory(categoryId: string) {
-    this.transactionFilters = { ...this.transactionFilters, categoryId, from: `${this.referenceMonth}-01`, to: this.monthEnd(this.referenceMonth) };
+    this.transactionFilters = { ...this.transactionFilters, categoryId, ...this.transactionMonthBounds() };
     await this.router.navigateByUrl('/lancamentos');
     await this.applyTransactionFilters();
   }
 
   async viewOverviewCategories() {
-    this.transactionFilters = { ...this.transactionFilters, categoryId: '', from: `${this.referenceMonth}-01`, to: this.monthEnd(this.referenceMonth) };
+    this.transactionFilters = { ...this.transactionFilters, categoryId: '', ...this.transactionMonthBounds() };
     await this.router.navigateByUrl('/lancamentos');
     await this.applyTransactionFilters();
   }
@@ -551,7 +551,7 @@ export class WorkspaceState implements OnInit {
   }
 
   async viewAccountTransactions(account: Account) {
-    this.transactionFilters = { from: '', to: '', accountId: account.id, categoryId: '', subcategoryId: '', type: undefined };
+    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: account.id, categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
     this.selectView('transactions');
     await this.applyTransactionFilters();
   }
@@ -661,7 +661,14 @@ export class WorkspaceState implements OnInit {
     if (mode === 'ONE_OFF') return;
     this.recurrenceCreationMode = mode;
   }
-  setTransactionCreationMode(mode: FinancialEntryMode) { this.transactionCreationMode = mode; }
+  get canConvertEditingTransaction() {
+    return Boolean(this.editingTransactionId && this.editingOccurrence && !this.editingOccurrence.installmentPurchaseId && !this.editingOccurrence.recurringRuleId);
+  }
+  setTransactionCreationMode(mode: FinancialEntryMode) {
+    if (this.editingTransactionId && !this.canConvertEditingTransaction) return;
+    if (this.editingTransactionId && mode !== 'ONE_OFF') this.prepareTransactionConversion(mode);
+    this.transactionCreationMode = mode;
+  }
   setCardCreationMode(mode: FinancialEntryMode) {
     this.cardCreationMode = mode;
     this.lockFinancialFormsToCard();
@@ -672,6 +679,7 @@ export class WorkspaceState implements OnInit {
     else this.onTransactionSourceChange();
   }
   async submitFinancialEntry(context: 'TRANSACTION' | 'RECURRENCE' | 'CARD', mode: FinancialEntryMode) {
+    if (context === 'TRANSACTION' && this.editingTransactionId && mode !== 'ONE_OFF') return this.convertTransaction(mode);
     if (mode === 'ONE_OFF') return this.saveTransaction();
     if (mode === 'FIXED') return this.saveRecurringRule();
     return this.saveInstallmentPurchase();
@@ -684,6 +692,28 @@ export class WorkspaceState implements OnInit {
       this.recurringForm = { sourceType: 'ACCOUNT', accountId: this.accounts.find((account) => account.isActive)?.id ?? '', cardId: '', subcategoryId: '', type: this.recurringForm.type, amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
       this.recurringRules = await this.api.recurringRules(this.activeHousehold!.id);
       await this.router.navigateByUrl(this.activeView === 'transactions' ? '/lancamentos' : this.activeView === 'cards' ? '/cartoes' : '/recorrencias');
+    });
+  }
+  private prepareTransactionConversion(mode: Exclude<FinancialEntryMode, 'ONE_OFF'>) {
+    const { sourceType, accountId, cardId, subcategoryId, type, amount, description, occurredOn, notes } = this.transactionForm;
+    if (mode === 'FIXED') {
+      this.recurringForm = { sourceType, accountId, cardId, subcategoryId, type, amount, description, startOn: occurredOn, endOn: '' };
+      return;
+    }
+    this.installmentForm = { sourceType, accountId, cardId, subcategoryId, type, totalAmount: amount, installmentCount: 2, startInstallmentNumber: 1, description, firstOccurredOn: occurredOn };
+  }
+  private async convertTransaction(mode: Exclude<FinancialEntryMode, 'ONE_OFF'>) {
+    if (!this.activeHousehold || !this.editingTransactionId || !this.canConvertEditingTransaction) return;
+    await this.run(async () => {
+      if (mode === 'FIXED') {
+        const { sourceType, ...form } = this.recurringForm;
+        await this.api.convertTransaction(this.activeHousehold!.id, this.editingTransactionId!, { mode, ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, amount: Math.round(form.amount * 100), endOn: form.endOn || undefined });
+      } else {
+        const { sourceType, ...form } = this.installmentForm;
+        await this.api.convertTransaction(this.activeHousehold!.id, this.editingTransactionId!, { mode, ...form, accountId: sourceType === 'ACCOUNT' ? form.accountId : undefined, cardId: sourceType === 'CARD' ? form.cardId : undefined, totalAmount: Math.round(form.totalAmount * 100) });
+      }
+      this.cancelTransactionEdit();
+      await this.loadDashboard();
     });
   }
   async setRecurringRuleStatus(rule: RecurringRule, status: 'ACTIVE' | 'PAUSED' | 'ENDED') {
@@ -858,7 +888,7 @@ export class WorkspaceState implements OnInit {
   }
 
   clearTransactionFilters() {
-    this.transactionFilters = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined };
+    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
     void this.applyTransactionFilters();
   }
 
@@ -996,7 +1026,9 @@ export class WorkspaceState implements OnInit {
 
   private async loadTransactions() {
     if (!this.activeHousehold) return;
-    const page = await this.api.transactions(this.activeHousehold.id, { ...this.transactionFilters, page: this.transactionPage, pageSize: this.transactionPageSize });
+    const monthBounds = this.transactionMonthBounds();
+    this.transactionFilters = { ...this.transactionFilters, ...monthBounds };
+    const page = await this.api.transactions(this.activeHousehold.id, { ...this.transactionFilters, ...monthBounds, page: this.transactionPage, pageSize: this.transactionPageSize });
     this.transactions = page.items;
     this.transactionTotal = page.total;
     this.transactionPage = page.page;
@@ -1013,7 +1045,8 @@ export class WorkspaceState implements OnInit {
   private async run(action: () => Promise<void>) {
     this.loading = true;
     this.error = '';
-    try { await action(); } catch (error: unknown) { this.error = error instanceof Error ? error.message : 'Ocorreu um erro inesperado.'; } finally {
+    this.render();
+    try { await action(); } catch (error: unknown) { this.error = this.messageForError(error); } finally {
       this.loading = false;
       this.render();
     }
@@ -1021,6 +1054,14 @@ export class WorkspaceState implements OnInit {
 
   private render() {
     queueMicrotask(() => this.applicationRef.tick());
+  }
+
+  private messageForError(error: unknown) {
+    if (error instanceof ApiError && error.issues.length) {
+      const labels: Record<string, string> = { accountId: 'Conta ou cartão', cardId: 'Cartão', subcategoryId: 'Subcategoria', type: 'Tipo', amount: 'Valor', totalAmount: 'Valor total', description: 'Descrição', occurredOn: 'Data', startOn: 'Início', firstOccurredOn: 'Data da ocorrência', installmentCount: 'Parcelas', startInstallmentNumber: 'Parcela início' };
+      return error.issues.map((issue) => `${labels[issue.path] ?? issue.path}: ${issue.message}`).join(' ');
+    }
+    return error instanceof Error ? error.message : 'Ocorreu um erro inesperado.';
   }
 
   private syncViewFromUrl(url: string) {
@@ -1072,6 +1113,11 @@ export class WorkspaceState implements OnInit {
   private monthEnd(month: string) {
     const [year, monthIndex] = month.split('-').map(Number);
     return `${year}-${String(monthIndex).padStart(2, '0')}-${String(new Date(Date.UTC(year, monthIndex, 0)).getUTCDate()).padStart(2, '0')}`;
+  }
+
+  /** Transactions are always scoped to the workspace's selected reference month. */
+  private transactionMonthBounds() {
+    return { from: `${this.referenceMonth}-01`, to: this.monthEnd(this.referenceMonth) };
   }
 
   private readAsBase64(file: File) {

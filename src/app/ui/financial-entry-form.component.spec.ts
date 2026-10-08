@@ -19,7 +19,38 @@ describe('FinancialEntryFormComponent', () => {
     fixture.componentRef.setInput('mode', 'ONE_OFF');
     fixture.detectChanges();
     expect(Array.from<HTMLButtonElement>(fixture.nativeElement.querySelectorAll('.entry-mode-tabs button')).map((button) => button.textContent?.trim())).toEqual(['Avulso', 'Fixo', 'Parcelado']);
+    expect(Array.from<HTMLButtonElement>(fixture.nativeElement.querySelectorAll('.schedule-type-tabs button')).map((button) => button.textContent?.trim())).toEqual(['Despesa', 'Receita']);
     expect(fixture.nativeElement.querySelector('input[name="transactionDescription"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('select[name="transactionType"]')).toBeNull();
+  });
+
+  it('blocks a one-off entry with a zero amount before it reaches the API', () => {
+    fixture.componentRef.setInput('mode', 'ONE_OFF');
+    fixture.componentInstance.transactionForm.amount = 0;
+    fixture.detectChanges();
+    const submit = fixture.nativeElement.querySelector('form button[type="submit"]') as HTMLButtonElement | null;
+    expect(submit?.disabled).toBe(true);
+  });
+
+  it('shows the immutable financial type while allowing a standalone edit to choose a schedule mode', () => {
+    fixture.componentRef.setInput('mode', 'ONE_OFF');
+    fixture.componentRef.setInput('editing', true);
+    fixture.componentRef.setInput('allowModeChange', true);
+    fixture.componentRef.setInput('entryType', 'INCOME');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelectorAll('.entry-mode-tabs button')).toHaveLength(3);
+    expect(fixture.nativeElement.querySelectorAll('.schedule-type-tabs button')).toHaveLength(0);
+    expect(fixture.nativeElement.querySelector('.entry-type-indicator')?.textContent).toContain('Receita');
+  });
+
+  it('locks an installment occurrence date when applying an edit to following occurrences', () => {
+    fixture.componentRef.setInput('mode', 'ONE_OFF');
+    fixture.componentRef.setInput('editing', true);
+    fixture.componentRef.setInput('showOccurrenceScope', true);
+    fixture.componentRef.setInput('occurrenceScope', 'FOLLOWING');
+    fixture.detectChanges();
+    expect(fixture.componentInstance.scheduleFieldsLocked).toBe(true);
+    expect((fixture.nativeElement.querySelector('input[name="transactionDate"]') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('locks the card flow to a credit card while keeping the shared installment fields', () => {
