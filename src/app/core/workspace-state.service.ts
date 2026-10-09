@@ -400,6 +400,7 @@ export class WorkspaceState implements OnInit {
       if (this.activeHousehold) {
         this.groupName = this.activeHousehold.name;
         await this.loadDashboard();
+        if (this.activeView === 'group' && this.canManageHouseholdUsers) await this.loadHouseholdManagement();
         this.hydrateActionFromPath(this.router.url.split('?')[0]);
       }
     });
@@ -1219,7 +1220,11 @@ export class WorkspaceState implements OnInit {
     if (path === '/transferencias/nova') this.transferEntryMode = 'ONE_OFF';
     if (view === 'recurrences' && path.endsWith('/nova')) this.recurrenceCreationMode = 'FIXED';
     if (path === '/cartoes/parcelamentos/nova') { this.cardCreationMode = 'INSTALLMENT'; this.lockFinancialFormsToCard(); }
-    if (view === 'group' && this.activeHousehold) { this.groupName = this.activeHousehold.name; this.financialRealizationMode = this.activeHousehold.financialRealizationMode ?? 'MANUAL'; }
+    if (view === 'group' && this.activeHousehold) {
+      this.groupName = this.activeHousehold.name;
+      this.financialRealizationMode = this.activeHousehold.financialRealizationMode ?? 'MANUAL';
+      if (this.canManageHouseholdUsers) void this.run(() => this.loadHouseholdManagement());
+    }
     this.hydrateActionFromPath(path);
     this.render();
   }

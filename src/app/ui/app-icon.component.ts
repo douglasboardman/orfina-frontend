@@ -2,9 +2,9 @@ import { NgComponentOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, Type } from '@angular/core';
 import {
   LucideArrowDownLeft, LucideArrowDownUp, LucideArrowLeftRight, LucideArrowUpRight, LucideBadgeDollarSign, LucideChevronDown, LucideChevronLeft,
-  LucideChevronRight, LucideCircle, LucideClock3, LucideCreditCard, LucideGoal, LucideLandmark,
-  LucideLayoutDashboard, LucideLogOut, LucideMenu, LucideMoon, LucidePlus,
-  LucideReceiptText, LucideRefreshCcw, LucideTags, LucideUpload, LucideWalletCards, LucideX,
+  LucideChevronRight, LucideCircle, LucideClock3, LucideCreditCard, LucideGoal, LucideHouse, LucideLandmark,
+  LucideLayoutDashboard, LucideLogOut, LucideMenu, LucideMoon, LucidePlus, LucideSun,
+  LucideReceiptText, LucideRefreshCcw, LucideTags, LucideUpload, LucideUsersRound, LucideWalletCards, LucideX,
 } from '@lucide/angular';
 
 /** Local SVG icon set used by product navigation and status controls. */
@@ -25,13 +25,13 @@ export class AppIconComponent {
 }
 
 const icons: Record<string, Type<unknown>> = {
-  circle: LucideCircle, menu: LucideMenu, close: LucideX, chevronDown: LucideChevronDown,
+  circle: LucideCircle, menu: LucideMenu, close: LucideX, home: LucideHouse, users: LucideUsersRound, chevronDown: LucideChevronDown,
   chevronLeft: LucideChevronLeft, chevronRight: LucideChevronRight, overview: LucideLayoutDashboard,
   accounts: LucideLandmark, cards: LucideCreditCard, recurring: LucideRefreshCcw,
   budget: LucideWalletCards, goals: LucideGoal, transactions: LucideArrowDownUp,
   transfers: LucideArrowLeftRight, imports: LucideUpload, categories: LucideTags,
   income: LucideArrowUpRight, expense: LucideArrowDownLeft,
-  theme: LucideMoon, logout: LucideLogOut, plus: LucidePlus, sync: LucideRefreshCcw,
+  theme: LucideMoon, moon: LucideMoon, sun: LucideSun, logout: LucideLogOut, plus: LucidePlus, sync: LucideRefreshCcw,
   planned: LucideWalletCards, spent: LucideReceiptText, pending: LucideClock3,
   available: LucideBadgeDollarSign,
 };

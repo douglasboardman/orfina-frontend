@@ -1,6 +1,7 @@
 import { CommonModule, CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Panel } from 'primeng/panel';
 import { WorkspaceState } from './core/workspace-state.service';
 import { AppIconComponent } from './ui/app-icon.component';
 import { DrawerComponent } from './ui/drawer.component';
@@ -21,7 +22,7 @@ import { FinancialEntryFormComponent } from './ui/financial-entry-form.component
 @Component({
   selector: 'app-workspace-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent, CardNetworkLogoComponent, CurrencyInputDirective, ChipAutocompleteComponent, FinancialEntryFormComponent],
+  imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, Panel, EmptyStateComponent, FeedbackBannerComponent, AppIconComponent, DrawerComponent, CardNetworkLogoComponent, CurrencyInputDirective, ChipAutocompleteComponent, FinancialEntryFormComponent],
   templateUrl: './workspace-page.component.html',
 })
 export class WorkspacePageComponent {

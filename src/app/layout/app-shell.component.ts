@@ -8,6 +8,7 @@ import { UserMenuComponent } from './user-menu.component';
 import { NavigableWorkspaceView, WorkspaceView } from './workspace-view';
 import { FeedbackBannerComponent } from '../ui/feedback-banner.component';
 import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-dialog.component';
+import { AppIconComponent } from '../ui/app-icon.component';
 
 /**
  * Layout-only boundary for the authenticated application.
@@ -19,11 +20,11 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
 @Component({
   selector: 'app-shell',
   standalone: true,
-  imports: [CommonModule, TopbarComponent, SidebarComponent, UserMenuComponent, FeedbackBannerComponent, QuickCreateDialogComponent],
+  imports: [CommonModule, TopbarComponent, SidebarComponent, UserMenuComponent, FeedbackBannerComponent, QuickCreateDialogComponent, AppIconComponent],
   template: `
-    <main>
+    <main class="layout-wrapper">
       <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
-      <app-topbar [authenticated]="authenticated" [sidebarOpen]="sidebarOpen" [userMenuOpen]="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [userAvatarUrl]="userAvatarUrl" (menuToggle)="menuToggle.emit()" (userMenuToggle)="userMenuToggle.emit()" />
+      <app-topbar [authenticated]="authenticated" [sidebarOpen]="sidebarOpen" [userMenuOpen]="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [userAvatarUrl]="userAvatarUrl" [theme]="theme" (menuToggle)="menuToggle.emit()" (themeToggle)="themeToggle.emit()" (userMenuToggle)="userMenuToggle.emit()" />
 
       <section *ngIf="!authenticated" class="landing">
         <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>
@@ -36,10 +37,11 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
       <section *ngIf="authenticated" class="workspace">
         <button *ngIf="sidebarOpen" class="sidebar-scrim" type="button" (click)="menuToggle.emit()" aria-label="Fechar menu"></button>
         <app-sidebar [activeView]="activeView" [backendVersion]="backendVersion" [open]="sidebarOpen" [theme]="theme" (menuToggle)="menuToggle.emit()" (navigate)="navigate.emit($event)" (themeToggle)="themeToggle.emit()" (signOut)="signOut.emit()" (quickCreate)="quickCreate.emit()" />
-        <div class="content-shell">
+        <div class="layout-main-container content-shell">
           <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [userAvatarUrl]="userAvatarUrl" [isSystemAdmin]="isSystemAdmin" [activeHousehold]="activeHousehold" [households]="households" [invitations]="invitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="profile.emit()" (householdSelected)="householdSelected.emit($event)" (createHousehold)="createHousehold.emit()" (configureGroup)="configureGroup.emit()" (acceptInvitation)="acceptInvitation.emit($event)" (signOut)="signOut.emit()" />
           <ng-content></ng-content>
         </div>
+        <button class="floating-create" type="button" (click)="quickCreate.emit()" aria-label="Criar novo item" title="Criar novo item"><app-icon name="plus" /></button>
         <app-quick-create-dialog [open]="quickCreateOpen" (close)="quickCreateClose.emit()" (select)="quickCreateSelect.emit($event)" />
       </section>
     </main>
