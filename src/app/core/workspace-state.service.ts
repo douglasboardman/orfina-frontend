@@ -664,6 +664,12 @@ export class WorkspaceState implements OnInit {
   get canConvertEditingTransaction() {
     return Boolean(this.editingTransactionId && this.editingOccurrence && !this.editingOccurrence.installmentPurchaseId && !this.editingOccurrence.recurringRuleId);
   }
+  get editingTransactionScheduleLabel() {
+    if (!this.editingOccurrence) return '';
+    if (this.editingOccurrence.recurringRuleId) return 'Fixa';
+    if (this.editingOccurrence.installmentPurchaseId) return 'Parcelada';
+    return 'Avulsa';
+  }
   setTransactionCreationMode(mode: FinancialEntryMode) {
     if (this.editingTransactionId && !this.canConvertEditingTransaction) return;
     if (this.editingTransactionId && mode !== 'ONE_OFF') this.prepareTransactionConversion(mode);
@@ -922,7 +928,22 @@ export class WorkspaceState implements OnInit {
     });
   }
 
-  editTransaction(transaction: Transaction) {
+  async editTransaction(transaction: Transaction) {
+    if (transaction.isForecast) {
+      if (!this.activeHousehold || !transaction.recurringRuleId) return;
+      const confirmed = confirm('O registro desta despesa ou receita fixa ainda não foi gerado. Deseja gerá-lo antecipadamente para edição?');
+      if (!confirmed) return;
+      await this.run(async () => {
+        const materialized = await this.api.materializeRecurringOccurrence(this.activeHousehold!.id, transaction.recurringRuleId!, transaction.occurredOn.slice(0, 10));
+        await this.loadDashboard();
+        this.startTransactionEdit(materialized);
+      });
+      return;
+    }
+    this.startTransactionEdit(transaction);
+  }
+
+  private startTransactionEdit(transaction: Transaction) {
     this.transactionCreationMode = 'ONE_OFF';
     this.editingTransactionId = transaction.id;
     this.editingOccurrence = transaction;

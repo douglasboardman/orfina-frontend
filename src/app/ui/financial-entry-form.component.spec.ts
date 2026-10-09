@@ -32,6 +32,16 @@ describe('FinancialEntryFormComponent', () => {
     expect(submit?.disabled).toBe(true);
   });
 
+  it('emits the typed fixed mode without relying on the native submit event name', () => {
+    fixture.componentRef.setInput('mode', 'FIXED');
+    fixture.detectChanges();
+    let emittedMode: string | undefined;
+    fixture.componentInstance.entrySubmit.subscribe((mode) => emittedMode = mode);
+    const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+    form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(emittedMode).toBe('FIXED');
+  });
+
   it('shows the immutable financial type while allowing a standalone edit to choose a schedule mode', () => {
     fixture.componentRef.setInput('mode', 'ONE_OFF');
     fixture.componentRef.setInput('editing', true);
@@ -41,6 +51,15 @@ describe('FinancialEntryFormComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('.entry-mode-tabs button')).toHaveLength(3);
     expect(fixture.nativeElement.querySelectorAll('.schedule-type-tabs button')).toHaveLength(0);
     expect(fixture.nativeElement.querySelector('.entry-type-indicator')?.textContent).toContain('Receita');
+  });
+
+  it('shows the immutable schedule kind beside the financial type while editing', () => {
+    fixture.componentRef.setInput('mode', 'ONE_OFF');
+    fixture.componentRef.setInput('editing', true);
+    fixture.componentRef.setInput('scheduleLabel', 'Fixa');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.entry-type-indicator')?.textContent).toContain('Despesa');
+    expect(fixture.nativeElement.querySelector('.entry-type-indicator')?.textContent).toContain('Fixa');
   });
 
   it('locks an installment occurrence date when applying an edit to following occurrences', () => {

@@ -25,6 +25,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
     <div class="entry-type-indicator" *ngIf="editing" aria-label="Tipo do lançamento">
       <span>Tipo do lançamento</span>
       <strong>{{ entryType === 'INCOME' ? 'Receita' : 'Despesa' }}</strong>
+      <strong *ngIf="scheduleLabel">{{ scheduleLabel }}</strong>
     </div>
     <div class="schedule-type-tabs" *ngIf="!editing" role="tablist" aria-label="Tipo financeiro">
       <button type="button" role="tab" [class.active]="entryType === 'EXPENSE'" [attr.aria-selected]="entryType === 'EXPENSE'" (click)="typeChange.emit('EXPENSE')">Despesa</button>
@@ -35,7 +36,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
       <button type="button" class="quick-create-option" [class.active]="mode === 'INSTALLMENT'" (click)="modeChange.emit('INSTALLMENT')"><strong>{{ entryType === 'INCOME' ? 'Receita parcelada' : 'Despesa parcelada' }}</strong><small>{{ entryType === 'INCOME' ? 'Ex.: venda parcelada, comissão parcelada, restituição etc.' : 'Ex.: financiamento, empréstimo, compra parcelada etc.' }}</small></button>
     </div>
 
-    <form class="form-card entry-form" *ngIf="mode === 'ONE_OFF'" (ngSubmit)="submit.emit('ONE_OFF')">
+    <form class="form-card entry-form" *ngIf="mode === 'ONE_OFF'" (ngSubmit)="entrySubmit.emit('ONE_OFF')">
       <label class="field field-wide"><span>Descrição</span><input name="transactionDescription" [(ngModel)]="transactionForm.description" placeholder="Ex.: Compra no mercado" required></label>
       <label class="field field-wide"><span>Valor</span><input appCurrencyInput name="transactionAmount" [(ngModel)]="transactionForm.amount" type="text" inputmode="numeric" required></label>
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: transactionForm, prefix: 'transaction', type: transactionForm.type }"></ng-container>
@@ -47,7 +48,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
       <button *ngIf="editing" type="button" class="secondary-button" (click)="cancel.emit()">Cancelar</button>
     </form>
 
-    <form class="form-card entry-form" *ngIf="mode === 'FIXED'" (ngSubmit)="submit.emit('FIXED')">
+    <form class="form-card entry-form" *ngIf="mode === 'FIXED'" (ngSubmit)="entrySubmit.emit('FIXED')">
       <label class="field field-wide"><span>Descrição</span><input name="recurringDescription" [(ngModel)]="recurringForm.description" placeholder="Ex.: Assinatura mensal" required></label>
       <label class="field field-wide"><span>Valor</span><input appCurrencyInput name="recurringAmount" [(ngModel)]="recurringForm.amount" type="text" inputmode="numeric" required></label>
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: recurringForm, prefix: 'recurring', type: recurringForm.type }"></ng-container>
@@ -56,7 +57,7 @@ export type InstallmentEntryForm = { sourceType: 'ACCOUNT' | 'CARD'; accountId: 
       <button type="submit" [disabled]="loading || !validRecurring()">{{ conversionFromTransaction ? 'Converter em recorrência contínua' : 'Criar recorrência contínua' }}</button>
     </form>
 
-    <form class="form-card entry-form" *ngIf="mode === 'INSTALLMENT'" (ngSubmit)="submit.emit('INSTALLMENT')">
+    <form class="form-card entry-form" *ngIf="mode === 'INSTALLMENT'" (ngSubmit)="entrySubmit.emit('INSTALLMENT')">
       <label class="field field-wide"><span>Descrição</span><input name="installmentDescription" [(ngModel)]="installmentForm.description" placeholder="Ex.: Financiamento" required></label>
       <label class="field field-wide"><span>Valor total</span><input appCurrencyInput name="installmentAmount" [(ngModel)]="installmentForm.totalAmount" type="text" inputmode="numeric" required></label>
       <ng-container *ngTemplateOutlet="sourceFields; context: { form: installmentForm, prefix: 'installment', type: installmentForm.type }"></ng-container>
@@ -89,6 +90,7 @@ export class FinancialEntryFormComponent {
   @Input() conversionFromTransaction = false;
   @Input() showOccurrenceScope = false;
   @Input() occurrenceScope: 'ONE' | 'FOLLOWING' = 'ONE';
+  @Input() scheduleLabel = '';
   @Input() loading = false;
   @Input({ required: true }) transactionForm!: TransactionEntryForm;
   @Input({ required: true }) recurringForm!: RecurringEntryForm;
@@ -102,7 +104,9 @@ export class FinancialEntryFormComponent {
   @Output() readonly typeChange = new EventEmitter<TransactionType>();
   @Output() readonly sourceChange = new EventEmitter<void>();
   @Output() readonly occurrenceScopeChange = new EventEmitter<'ONE' | 'FOLLOWING'>();
-  @Output() readonly submit = new EventEmitter<FinancialEntryMode>();
+  // Avoid the native DOM `submit` event name: it bubbles from the internal forms
+  // and may otherwise be handled by the host instead of the typed component event.
+  @Output() readonly entrySubmit = new EventEmitter<FinancialEntryMode>();
   @Output() readonly cancel = new EventEmitter<void>();
 
   changeOccurrenceScope(scope: 'ONE' | 'FOLLOWING') {
