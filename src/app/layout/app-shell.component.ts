@@ -23,7 +23,7 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
   template: `
     <main>
       <a class="skip-link" href="#main-content">Pular para o conteúdo</a>
-      <app-topbar [authenticated]="authenticated" [sidebarOpen]="sidebarOpen" [userMenuOpen]="userMenuOpen" [userInitial]="userInitial" [userName]="userName" (menuToggle)="menuToggle.emit()" (userMenuToggle)="userMenuToggle.emit()" />
+      <app-topbar [authenticated]="authenticated" [sidebarOpen]="sidebarOpen" [userMenuOpen]="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [userAvatarUrl]="userAvatarUrl" (menuToggle)="menuToggle.emit()" (userMenuToggle)="userMenuToggle.emit()" />
 
       <section *ngIf="!authenticated" class="landing">
         <app-feedback-banner *ngIf="error" [message]="error"></app-feedback-banner>
@@ -37,7 +37,7 @@ import { QuickCreateDialogComponent, QuickCreateKind } from '../ui/quick-create-
         <button *ngIf="sidebarOpen" class="sidebar-scrim" type="button" (click)="menuToggle.emit()" aria-label="Fechar menu"></button>
         <app-sidebar [activeView]="activeView" [backendVersion]="backendVersion" [open]="sidebarOpen" [theme]="theme" (menuToggle)="menuToggle.emit()" (navigate)="navigate.emit($event)" (themeToggle)="themeToggle.emit()" (signOut)="signOut.emit()" (quickCreate)="quickCreate.emit()" />
         <div class="content-shell">
-          <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [isSystemAdmin]="isSystemAdmin" [activeHousehold]="activeHousehold" [households]="households" [invitations]="invitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="profile.emit()" (householdSelected)="householdSelected.emit($event)" (createHousehold)="createHousehold.emit()" (configureGroup)="configureGroup.emit()" (acceptInvitation)="acceptInvitation.emit($event)" (signOut)="signOut.emit()" />
+          <app-user-menu *ngIf="userMenuOpen" [userInitial]="userInitial" [userName]="userName" [userAvatarUrl]="userAvatarUrl" [isSystemAdmin]="isSystemAdmin" [activeHousehold]="activeHousehold" [households]="households" [invitations]="invitations" [canManageActiveHousehold]="canManageActiveHousehold" [loading]="loading" (profile)="profile.emit()" (householdSelected)="householdSelected.emit($event)" (createHousehold)="createHousehold.emit()" (configureGroup)="configureGroup.emit()" (acceptInvitation)="acceptInvitation.emit($event)" (signOut)="signOut.emit()" />
           <ng-content></ng-content>
         </div>
         <app-quick-create-dialog [open]="quickCreateOpen" (close)="quickCreateClose.emit()" (select)="quickCreateSelect.emit($event)" />
@@ -55,6 +55,7 @@ export class AppShellComponent {
   @Input({ required: true }) userMenuOpen = false;
   @Input({ required: true }) userInitial = '';
   @Input({ required: true }) userName = '';
+  @Input() userAvatarUrl?: string;
   @Input({ required: true }) activeView: WorkspaceView = 'overview';
   @Input({ required: true }) theme: Theme = 'light';
   @Input() backendVersion?: string;

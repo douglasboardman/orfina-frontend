@@ -65,7 +65,7 @@ describe('Workspace classification UI', () => {
     state['displayedTransactions'] = [{ ...transaction, subcategory: { ...category.subcategories[1], category } }];
     const fixture = TestBed.createComponent(WorkspacePageComponent);
     fixture.detectChanges();
-    const detail = (fixture.nativeElement as HTMLElement).querySelector('.transaction small')!;
+    const detail = (fixture.nativeElement as HTMLElement).querySelector('.transaction-meta')!;
     expect(detail.textContent).toContain('Mercado · Conta');
     expect(detail.textContent).not.toContain('Alimentação');
   });

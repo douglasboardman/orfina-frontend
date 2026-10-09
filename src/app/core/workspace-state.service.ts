@@ -2,7 +2,7 @@ import { Subscription } from 'rxjs';
 import { ApplicationRef, Injectable, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { ApiError, ApiService } from '../api.service';
-import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
+import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, FinancialRealizationMode, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringTransferRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from '../financial-brands';
 import { SessionStore } from './session.store';
 import { UiStore } from './ui.store';
@@ -31,6 +31,7 @@ export class WorkspaceState implements OnInit {
   contributionGoal?: SavingsGoal;
   contributionAmount = 0;
   transfers: AccountTransfer[] = [];
+  recurringTransferRules: RecurringTransferRule[] = [];
   importBatches: ImportBatch[] = [];
   importPreview?: ImportBatch;
   categories: Category[] = [];
@@ -53,6 +54,7 @@ export class WorkspaceState implements OnInit {
   groupName = '';
   recurringMaterializationMode: RecurringMaterializationMode = 'ON_OCCURRENCE_DATE';
   recurringMaterializationValue = 0;
+  financialRealizationMode: FinancialRealizationMode = 'MANUAL';
   readonly categoryIcons = [
     { value: 'sell', label: 'Etiqueta' },
     { value: 'payments', label: 'Dinheiro em espécie' },
@@ -94,7 +96,7 @@ export class WorkspaceState implements OnInit {
     { value: 'church', label: 'Igreja' },
     { value: 'more_horiz', label: 'Outros' },
   ] as const;
-  invitationForm: { email: string; role: 'MEMBER' | 'VIEWER' } = { email: '', role: 'MEMBER' };
+  invitationForm: { email: string; role: 'MANAGER' | 'MEMBER' | 'VIEWER' } = { email: '', role: 'MEMBER' };
   accountForm: { name: string; type: AccountType; bankName: string; bankLogoUrl: string; initialBalance: number } = { name: '', type: 'CHECKING', bankName: '', bankLogoUrl: '', initialBalance: 0 };
   cardForm: { name: string; issuerName: string; issuerLogoUrl: string; network: CardNetwork; lastFour: string; creditLimit: number | null; closingDay: number; dueDay: number } = { name: '', issuerName: '', issuerLogoUrl: '', network: 'VISA', lastFour: '', creditLimit: null, closingDay: 1, dueDay: 10 };
   recurringForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; startOn: string; endOn: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
@@ -116,7 +118,13 @@ export class WorkspaceState implements OnInit {
   occurrenceEditScope: 'ONE' | 'FOLLOWING' = 'ONE';
   transactionForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
   transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
-  transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
+  transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'PENDING' };
+  transferEntryMode: 'ONE_OFF' | 'RECURRING' = 'ONE_OFF';
+  recurringTransferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; description: string; startOn: string; endOn: string } = { sourceAccountId: '', destinationAccountId: '', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+  editingRecurringTransferRuleId?: string;
+  recurringTransferDialogOpen = false;
+  editingHouseholdMember?: HouseholdMember;
+  memberEditForm: { displayName: string; role: 'MANAGER' | 'MEMBER' | 'VIEWER'; isActive: boolean; archive: boolean } = { displayName: '', role: 'MEMBER', isActive: true, archive: false };
   importForm: { accountId: string; file?: File } = { accountId: '' };
 
   constructor(
@@ -143,9 +151,9 @@ export class WorkspaceState implements OnInit {
   clearFinancialState() {
     this.householdContext.clear(); this.overview = undefined; this.accounts = []; this.cards = [];
     this.categories = []; this.transactions = []; this.cardStatements = []; this.paymentStatement = undefined; this.recurringRules = [];
-    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.contributionGoal = undefined; this.transfers = [];
+    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.contributionGoal = undefined; this.transfers = []; this.recurringTransferRules = [];
     this.importBatches = []; this.importPreview = undefined; this.householdMembers = []; this.householdInvitations = [];
-    this.myHouseholdInvitations = []; this.quickCreateOpen = false;
+    this.myHouseholdInvitations = []; this.quickCreateOpen = false; this.recurringTransferDialogOpen = false; this.editingRecurringTransferRuleId = undefined;
   }
   get isSystemAdmin() { return this.currentUser?.systemRole === 'SYSTEM_ADMIN'; }
   get theme() { return this.ui.theme(); }
@@ -163,6 +171,10 @@ export class WorkspaceState implements OnInit {
   get currentUser() { return this.session.user(); }
   get authenticated() { return this.session.authenticated(); }
   get canManageActiveHousehold() {
+    const role = this.activeHousehold?.members[0]?.role;
+    return role === 'OWNER' || role === 'ADMIN' || role === 'MANAGER';
+  }
+  get canManageHouseholdUsers() {
     const role = this.activeHousehold?.members[0]?.role;
     return role === 'OWNER' || role === 'ADMIN';
   }
@@ -268,8 +280,9 @@ export class WorkspaceState implements OnInit {
   }
   get viewEyebrow() { return this.activeView === 'overview' ? 'VISÃO GERAL' : this.activeView.toUpperCase(); }
   get userName() {
-    return this.currentUser?.name || 'Minha conta';
+    return this.activeHousehold?.members[0]?.displayName || this.currentUser?.name || 'Minha conta';
   }
+  get userAvatarUrl() { return this.currentUser?.avatarUrl; }
   get userInitial() { return this.userName.slice(0, 1).toUpperCase(); }
   categoryIconLabel(icon: string) { return this.categoryIcons.find((item) => item.value === icon)?.label ?? icon; }
   bankLogoUrl(bankName?: string, fallback?: string) { return bankLogoUrlFor(bankName, fallback); }
@@ -315,7 +328,8 @@ export class WorkspaceState implements OnInit {
     this.quickCreateOpen = false;
     if (matchMedia('(max-width: 860px)').matches) this.ui.setSidebarOpen(false);
     if (kind === 'TRANSFER') {
-      this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
+      this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'PENDING' };
+      this.transferEntryMode = 'ONE_OFF';
       void this.router.navigateByUrl('/transferencias/nova');
       return;
     }
@@ -397,6 +411,7 @@ export class WorkspaceState implements OnInit {
       this.groupName = this.activeHousehold.name;
       this.recurringMaterializationMode = this.activeHousehold.recurringMaterializationMode;
       this.recurringMaterializationValue = this.activeHousehold.recurringMaterializationValue;
+      this.financialRealizationMode = this.activeHousehold.financialRealizationMode ?? 'MANUAL';
       localStorage.setItem('orfina.active-household', id);
       this.householdManagementOpen = false;
       this.householdMembers = [];
@@ -496,15 +511,25 @@ export class WorkspaceState implements OnInit {
     });
   }
 
+  async saveFinancialRealizationSettings() {
+    if (!this.activeHousehold || !this.canManageActiveHousehold) return;
+    await this.run(async () => {
+      const updated = await this.api.updateHousehold(this.activeHousehold!.id, { financialRealizationMode: this.financialRealizationMode });
+      this.households = this.households.map((household) => household.id === updated.id ? updated : household);
+      this.activeHousehold = updated;
+      this.financialRealizationMode = updated.financialRealizationMode ?? this.financialRealizationMode;
+    });
+  }
+
   async toggleHouseholdManagement() {
-    if (!this.canManageActiveHousehold) return;
+    if (!this.canManageHouseholdUsers) return;
     this.householdManagementOpen = !this.householdManagementOpen;
     if (this.householdManagementOpen) await this.run(() => this.loadHouseholdManagement());
     else this.render();
   }
 
   async createHouseholdInvitation() {
-    if (!this.activeHousehold || !this.invitationForm.email.trim()) return;
+    if (!this.activeHousehold || !this.canManageHouseholdUsers || !this.invitationForm.email.trim()) return;
     await this.run(async () => {
       await this.api.createHouseholdInvitation(this.activeHousehold!.id, this.invitationForm);
       this.invitationForm = { email: '', role: 'MEMBER' };
@@ -512,8 +537,37 @@ export class WorkspaceState implements OnInit {
     });
   }
 
+  openHouseholdMemberEditor(member: HouseholdMember) {
+    if (!this.canManageHouseholdUsers || member.role === 'OWNER' || member.role === 'ADMIN') return;
+    this.editingHouseholdMember = member;
+    this.memberEditForm = { displayName: member.displayName ?? member.user.name, role: member.role as 'MANAGER' | 'MEMBER' | 'VIEWER', isActive: member.isActive, archive: Boolean(member.archivedAt) };
+    this.render();
+  }
+  closeHouseholdMemberEditor() { this.editingHouseholdMember = undefined; this.render(); }
+  async archiveHouseholdMember() {
+    const member = this.editingHouseholdMember;
+    if (!member || !confirm(`Arquivar ${member.displayName || member.user.name} deste grupo? A pessoa perderá o acesso a esta família, mas seus lançamentos e histórico serão preservados.`)) return;
+    this.memberEditForm.archive = true;
+    this.memberEditForm.isActive = false;
+    await this.saveHouseholdMember();
+  }
+  async restoreHouseholdMember() {
+    this.memberEditForm.archive = false;
+    this.memberEditForm.isActive = true;
+    await this.saveHouseholdMember();
+  }
+  async saveHouseholdMember() {
+    const member = this.editingHouseholdMember;
+    if (!this.activeHousehold || !member || !this.canManageHouseholdUsers) return;
+    await this.run(async () => {
+      const updated = await this.api.updateHouseholdMember(this.activeHousehold!.id, member.userId, { ...this.memberEditForm, displayName: this.memberEditForm.displayName.trim() || undefined });
+      this.householdMembers = this.householdMembers.map((item) => item.userId === updated.userId ? updated : item);
+      this.editingHouseholdMember = undefined;
+    });
+  }
+
   async revokeHouseholdInvitation(invitation: HouseholdInvitation) {
-    if (!this.activeHousehold || !confirm(`Revogar o convite para ${invitation.email}?`)) return;
+    if (!this.activeHousehold || !this.canManageHouseholdUsers || !confirm(`Revogar o convite para ${invitation.email}?`)) return;
     await this.run(async () => {
       await this.api.revokeHouseholdInvitation(this.activeHousehold!.id, invitation.id);
       await this.loadHouseholdManagement();
@@ -976,10 +1030,21 @@ export class WorkspaceState implements OnInit {
     this.installmentForm.sourceType = 'CARD'; this.installmentForm.accountId = '';
   }
 
-  async deleteTransaction(transactionId: string) {
-    if (!this.activeHousehold || !confirm('Excluir este lançamento? Esta ação não pode ser desfeita.')) return;
+  async deleteTransaction(transaction: Transaction | string) {
+    if (!this.activeHousehold) return;
+    const item = typeof transaction === 'string' ? this.transactions.find((candidate) => candidate.id === transaction) : transaction;
+    if (!item) return;
+    const scheduled = Boolean(item.recurringRuleId || item.installmentPurchaseId);
+    let scope: 'ONE' | 'FOLLOWING' | 'ALL' = 'ONE';
+    if (scheduled) {
+      const choice = prompt('Excluir lançamento agendado:\nONE = somente esta ocorrência\nFOLLOWING = esta e as próximas\nALL = toda a série', 'ONE')?.toUpperCase();
+      if (choice !== 'ONE' && choice !== 'FOLLOWING' && choice !== 'ALL') return;
+      scope = choice;
+    }
+    const impact = scope === 'ALL' ? 'Toda a série será removida.' : scope === 'FOLLOWING' ? 'Esta e as próximas ocorrências serão removidas.' : 'Somente esta ocorrência será removida.';
+    if (!confirm(`Excluir ${scheduled ? 'lançamento agendado' : 'este lançamento'}? ${impact} Esta ação não pode ser desfeita.`)) return;
     await this.run(async () => {
-      await this.api.deleteTransaction(this.activeHousehold!.id, transactionId);
+      await this.api.deleteTransaction(this.activeHousehold!.id, item.id, scheduled ? scope : undefined);
       await this.loadDashboard();
     });
   }
@@ -993,7 +1058,7 @@ export class WorkspaceState implements OnInit {
     if (!this.activeHousehold) return;
     await this.run(async () => {
       await this.api.createTransfer(this.activeHousehold!.id, { ...this.transferForm, amount: Math.round(this.transferForm.amount * 100), description: this.transferForm.description || undefined });
-      this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'POSTED' };
+      this.transferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'PENDING' };
       await this.loadDashboard();
       await this.router.navigateByUrl('/transferencias');
     });
@@ -1002,6 +1067,55 @@ export class WorkspaceState implements OnInit {
   async setTransferStatus(transfer: AccountTransfer, status: 'PENDING' | 'POSTED' | 'DISCARDED') {
     if (!this.activeHousehold) return;
     await this.run(async () => { await this.api.setTransferStatus(this.activeHousehold!.id, transfer.id, status); await this.loadDashboard(); });
+  }
+  setTransferEntryMode(mode: 'ONE_OFF' | 'RECURRING') {
+    this.transferEntryMode = mode;
+    this.render();
+  }
+  closeRecurringTransferDialog() {
+    this.editingRecurringTransferRuleId = undefined;
+    this.recurringTransferDialogOpen = false;
+    this.recurringTransferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+    this.render();
+  }
+  async saveRecurringTransferRule() {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      const form = this.recurringTransferForm;
+      const data = { ...form, amount: Math.round(form.amount * 100), description: form.description || undefined, endOn: form.endOn || undefined };
+      if (this.editingRecurringTransferRuleId) await this.api.updateRecurringTransferRule(this.activeHousehold!.id, this.editingRecurringTransferRuleId, data);
+      else await this.api.createRecurringTransferRule(this.activeHousehold!.id, data);
+      this.recurringTransferForm = { sourceAccountId: '', destinationAccountId: '', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
+      this.editingRecurringTransferRuleId = undefined;
+      this.recurringTransferDialogOpen = false;
+      this.recurringTransferRules = await this.api.recurringTransferRules(this.activeHousehold!.id);
+      if (this.activeView === 'transfers' && this.isActionRoute) await this.router.navigateByUrl('/transferencias');
+    });
+  }
+  async setRecurringTransferRuleStatus(rule: RecurringTransferRule, status: 'ACTIVE' | 'PAUSED' | 'ENDED') {
+    if (!this.activeHousehold) return;
+    await this.run(async () => { await this.api.setRecurringTransferRuleStatus(this.activeHousehold!.id, rule.id, status); this.recurringTransferRules = await this.api.recurringTransferRules(this.activeHousehold!.id); });
+  }
+  async materializeRecurringTransferOccurrence(rule: RecurringTransferRule) {
+    if (!this.activeHousehold) return;
+    await this.run(async () => {
+      await this.api.materializeRecurringTransferOccurrence(this.activeHousehold!.id, rule.id, new Date().toISOString().slice(0, 10));
+      await this.loadDashboard();
+    });
+  }
+  editRecurringTransferRule(rule: RecurringTransferRule) {
+    this.editingRecurringTransferRuleId = rule.id;
+    this.recurringTransferForm = { sourceAccountId: rule.sourceAccountId, destinationAccountId: rule.destinationAccountId, amount: rule.amount / 100, description: rule.description ?? '', startOn: rule.startOn.slice(0, 10), endOn: rule.endOn?.slice(0, 10) ?? '' };
+    this.recurringTransferDialogOpen = true;
+    this.render();
+  }
+  async deleteRecurringTransferRule(rule: RecurringTransferRule) {
+    if (!this.activeHousehold || !confirm(`Excluir toda a regra de transferência recorrente “${rule.sourceAccount.name} → ${rule.destinationAccount.name}”? As ocorrências futuras serão removidas.`)) return;
+    await this.run(async () => {
+      await this.api.deleteRecurringTransferRule(this.activeHousehold!.id, rule.id);
+      if (this.editingRecurringTransferRuleId === rule.id) this.closeRecurringTransferDialog();
+      this.recurringTransferRules = await this.api.recurringTransferRules(this.activeHousehold!.id);
+    });
   }
 
   onImportFile(event: Event) { this.importForm.file = (event.target as HTMLInputElement).files?.[0]; }
@@ -1028,7 +1142,7 @@ export class WorkspaceState implements OnInit {
 
   private async loadDashboard() {
     if (!this.activeHousehold) return;
-    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id, this.referenceMonth), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.referenceMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
+    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, recurringTransferRules, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id, this.referenceMonth), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.referenceMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.recurringTransferRules(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
     this.overview = overview;
     this.accounts = accounts;
     this.cards = cards;
@@ -1038,6 +1152,7 @@ export class WorkspaceState implements OnInit {
     this.budgetSummary = budgetSummary;
     this.savingsGoals = savingsGoals;
     this.transfers = transfers;
+    this.recurringTransferRules = recurringTransferRules;
     this.importBatches = importBatches;
     await this.loadTransactions();
     if (!this.transactionForm.accountId) this.transactionForm.accountId = this.overview.accounts[0]?.id ?? '';
@@ -1101,9 +1216,10 @@ export class WorkspaceState implements OnInit {
           : 'overview';
     this.activeView = view;
     if (path === '/lancamentos/novo') this.transactionCreationMode = 'ONE_OFF';
+    if (path === '/transferencias/nova') this.transferEntryMode = 'ONE_OFF';
     if (view === 'recurrences' && path.endsWith('/nova')) this.recurrenceCreationMode = 'FIXED';
     if (path === '/cartoes/parcelamentos/nova') { this.cardCreationMode = 'INSTALLMENT'; this.lockFinancialFormsToCard(); }
-    if (view === 'group' && this.activeHousehold) this.groupName = this.activeHousehold.name;
+    if (view === 'group' && this.activeHousehold) { this.groupName = this.activeHousehold.name; this.financialRealizationMode = this.activeHousehold.financialRealizationMode ?? 'MANUAL'; }
     this.hydrateActionFromPath(path);
     this.render();
   }

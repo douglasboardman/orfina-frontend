@@ -3,9 +3,10 @@ export type TransactionType = 'INCOME' | 'EXPENSE';
 export type AccountType = 'CHECKING' | 'SALARY' | 'SAVINGS' | 'INVESTMENT' | 'CASH';
 
 export type RecurringMaterializationMode = 'ON_OCCURRENCE_DATE' | 'EXERCISE_MONTH_DAY' | 'DAYS_BEFORE_EXERCISE_MONTH';
-export interface Household { id: string; name: string; currency: string; timezone: string; recurringMaterializationMode: RecurringMaterializationMode; recurringMaterializationValue: number; members: { role: string }[]; }
-export interface HouseholdMember { householdId: string; userId: string; role: string; user: { id: string; name: string; email: string; avatarUrl?: string }; }
-export interface HouseholdInvitation { id: string; householdId: string; email: string; role: 'MEMBER' | 'VIEWER'; status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'; expiresAt: string; household?: { id: string; name: string; currency: string }; }
+export type FinancialRealizationMode = 'MANUAL' | 'ON_OCCURRENCE_DATE';
+export interface Household { id: string; name: string; currency: string; timezone: string; recurringMaterializationMode: RecurringMaterializationMode; recurringMaterializationValue: number; financialRealizationMode?: FinancialRealizationMode; members: { role: string; displayName?: string }[]; }
+export interface HouseholdMember { householdId: string; userId: string; role: string; displayName?: string; isActive: boolean; archivedAt?: string; user: { id: string; name: string; email: string; avatarUrl?: string }; }
+export interface HouseholdInvitation { id: string; householdId: string; email: string; role: 'MANAGER' | 'MEMBER' | 'VIEWER'; status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'; expiresAt: string; household?: { id: string; name: string; currency: string }; }
 export interface Account { id: string; name: string; type: AccountType; bankName?: string; bankLogoUrl?: string; initialBalance: number; balance?: number; isActive: boolean; }
 export interface Card { id: string; name: string; issuerName?: string; issuerLogoUrl?: string; network: import('./financial-brands').CardNetwork; lastFour?: string; creditLimit?: number; closingDay: number; dueDay: number; isActive: boolean; }
 export type CardStatementStatus = 'OPEN' | 'CLOSED' | 'PAID';
@@ -18,7 +19,8 @@ export interface Subcategory { id: string; name: string; categoryId: string; isD
 export interface Category { id: string; name: string; type: TransactionType; color: string; icon: string; isActive: boolean; subcategories: Subcategory[]; }
 export type TransactionStatus = 'PENDING' | 'POSTED' | 'DISCARDED';
 export type AccountTransferStatus = TransactionStatus;
-export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; notes?: string; accountId?: string; cardId?: string; installmentPurchaseId?: string; recurringRuleId?: string; isForecast?: boolean; account?: Account; card?: Card; subcategory: Subcategory & { category: Category }; }
+export type TransactionMode = 'SINGLE' | 'FIXED' | 'INSTALLMENT';
+export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; notes?: string; accountId?: string; cardId?: string; installmentPurchaseId?: string; recurringRuleId?: string; mode?: TransactionMode; installmentNumber?: number; installmentCount?: number; startInstallmentNumber?: number; isForecast?: boolean; account?: Account; card?: Card; subcategory: Subcategory & { category: Category }; }
 export interface TransactionFilters { page?: number; pageSize?: number; from?: string; to?: string; accountId?: string; cardId?: string; statementId?: string; recurringRuleId?: string; categoryId?: string; subcategoryId?: string; type?: TransactionType; status?: TransactionStatus; importBatchId?: string; }
 export interface TransactionPage { items: Transaction[]; total: number; page: number; pageSize: number; }
 export interface Overview {
@@ -31,13 +33,15 @@ export interface Overview {
   cardOpenTotal: number;
   upcomingStatements: (CardStatement & { card: Card })[];
   recurringForecast: { id: string; amount: number; description: string; startOn: string; endOn?: string }[];
-  indicators: { availableBalance: number; realizedIncome: number; realizedExpenses: number; pendingCommitments: number; cardOpenTotal: number; budgetCommitted: number };
+  indicators: { availableBalance: number; realizedIncome: number; realizedExpenses: number; pendingIncome?: number; pendingExpenses?: number; pendingCommitments: number; cardOpenTotal: number; budgetCommitted: number; investmentBalance?: number };
   comparison: { income: { current: number; previous: number }; expenses: { current: number; previous: number }; balance: { current: number; previous: number } };
   charts: { weeklyFlow: { week: number; income: number; expenses: number }[]; expenseByCategory: { categoryId: string; name: string; color: string; amount: number }[]; budget: { limitAmount: number; spentAmount: number; pendingAmount: number } };
 }
 export interface BudgetRow { id: string; categoryId: string; limitAmount: number; notes?: string; category: Category; spentAmount: number; pendingAmount: number; availableAmount: number; percentUsed: number; }
 export interface BudgetSummary { referenceMonth: string; isClosed: boolean; closedAt?: string; rows: BudgetRow[]; unbudgeted: { category: Category; spentAmount: number; pendingAmount: number }[]; totals: { plannedAmount: number; spentAmount: number; pendingAmount: number; availableAmount: number; unbudgetedAmount: number; projectedRecurring: number; projectedInstallments: number; cardOpenTotal: number }; }
 export interface AccountTransfer { id: string; sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; status: AccountTransferStatus; description?: string; sourceAccount: Account; destinationAccount: Account; importItem?: { batchId: string }; }
+export type RecurringTransferRuleStatus = 'ACTIVE' | 'PAUSED' | 'ENDED';
+export interface RecurringTransferRule { id: string; sourceAccountId: string; destinationAccountId: string; amount: number; description?: string; startOn: string; endOn?: string; status: RecurringTransferRuleStatus; sourceAccount: Account; destinationAccount: Account; }
 export type ImportBatchStatus = 'DRAFT' | 'VALIDATED' | 'COMMITTED' | 'CANCELED' | 'FAILED';
 export interface ImportItem { id: string; rowNumber: number; status: 'VALID' | 'INVALID' | 'POSSIBLE_DUPLICATE' | 'COMMITTED' | 'CANCELED'; diagnostics?: { code: string; message: string }[]; data: { description?: string; amount?: number; occurredOn?: string; kind?: string }; }
 export interface ImportBatch { id: string; fileName?: string; format: string; status: ImportBatchStatus; diagnostics?: { totalRows?: number; validCount?: number; invalidCount?: number }; items?: ImportItem[]; createdAt: string; }
