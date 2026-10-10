@@ -32,6 +32,16 @@ describe('FinancialEntryFormComponent', () => {
     expect(submit?.disabled).toBe(true);
   });
 
+  it('explains that a card purchase impacts the due month while retaining its purchase date', () => {
+    fixture.componentRef.setInput('mode', 'ONE_OFF');
+    fixture.componentInstance.transactionForm.sourceType = 'CARD';
+    fixture.componentInstance.transactionForm.cardId = 'card_1';
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Data da compra');
+    expect(fixture.nativeElement.textContent).toContain('mês de vencimento da fatura');
+    expect(fixture.componentInstance.transactionForm.occurredOn).toBe('2026-10-08');
+  });
+
   it('emits the typed fixed mode without relying on the native submit event name', () => {
     fixture.componentRef.setInput('mode', 'FIXED');
     fixture.detectChanges();

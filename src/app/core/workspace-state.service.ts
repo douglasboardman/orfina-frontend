@@ -294,13 +294,19 @@ export class WorkspaceState implements OnInit {
   get statementOptions() {
     return this.statementDetail ? this.statements.filter((item) => item.cardId === this.statementDetail!.cardId) : [];
   }
-  /** The cards page is an operational view: only invoices closing in its current month belong in its table. */
+  /** A statement belongs to the month when its payment is due. */
   get currentStatements() {
-    return this.statements.filter((item) => item.cycleEnd.slice(0, 7) === this.referenceMonth);
+    return this.statements.filter((item) => item.dueOn.slice(0, 7) === this.referenceMonth);
   }
   statementStatusLabel(status: CardStatement['status']) { return status === 'OPEN' ? 'Aberta' : status === 'CLOSED' ? 'Fechada' : 'Paga'; }
   statementModeLabel(mode?: Transaction['mode']) { return mode === 'INSTALLMENT' ? 'Parcelada' : mode === 'FIXED' ? 'Fixa' : 'Avulsa'; }
   statementPurchaseTotal(transaction: Transaction) { return transaction.installmentPurchase?.totalAmount ?? transaction.amount; }
+  statementProjectedTotal(statement: CardStatement) {
+    const forecastImpact = this.statementTransactions
+      .filter((transaction) => transaction.isForecast)
+      .reduce((sum, transaction) => sum + (transaction.type === 'EXPENSE' ? transaction.amount : -transaction.amount), 0);
+    return statement.totalAmount + forecastImpact;
+  }
   statementLimitPercent(statement: CardStatement) { return statement.limitUsagePercent ?? 0; }
   statementOutstanding(statement: CardStatement) { return Math.max(0, statement.totalAmount - statement.payments.reduce((sum, payment) => sum + payment.amount, 0)); }
   setCategoryTab(tab: 'EXPENSE' | 'INCOME') {

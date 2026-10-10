@@ -3,7 +3,7 @@ import localePt from '@angular/common/locales/pt';
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceState } from './core/workspace-state.service';
-import { Category, Transaction } from './models';
+import { CardStatement, Category, Transaction } from './models';
 import { WorkspacePageComponent } from './workspace-page.component';
 
 registerLocaleData(localePt, 'pt-BR');
@@ -70,6 +70,24 @@ describe('Workspace classification UI', () => {
     expect(detail.textContent).not.toContain('Alimentação');
   });
 
+  it('shows the purchase date separately from the card financial due date', () => {
+    state['activeView'] = 'transactions';
+    state['displayedTransactions'] = [{ ...transaction, cardId: 'card_1', financialOn: '2026-11-05', occurredOn: '2026-10-10' }];
+    const fixture = TestBed.createComponent(WorkspacePageComponent);
+    fixture.detectChanges();
+    const detail = (fixture.nativeElement as HTMLElement).querySelector('.transaction-meta')!;
+    expect(detail.textContent).toContain('Compra em 10/10/2026');
+    expect(detail.textContent).toContain('Vencimento 05/11/2026');
+  });
+
+  it('groups the October closing statement in November, its due month', () => {
+    const november = { id: 'november', cardId: 'card_1', cycleStart: '2026-09-26', cycleEnd: '2026-10-25', dueOn: '2026-11-05', status: 'OPEN', totalAmount: 1_500, payments: [] } satisfies CardStatement;
+    const october = { ...november, id: 'october', cycleEnd: '2026-09-25', dueOn: '2026-10-05' };
+    const current = Object.getOwnPropertyDescriptor(WorkspaceState.prototype, 'currentStatements')!.get!;
+    expect(current.call({ statements: [october, november], referenceMonth: '2026-10' })).toEqual([october]);
+    expect(current.call({ statements: [october, november], referenceMonth: '2026-11' })).toEqual([november]);
+  });
+
   it('keeps transaction filters scoped to the reference month and offers month navigation', () => {
     state['activeView'] = 'transactions';
     state['stepReferenceMonth'] = () => undefined;
@@ -92,7 +110,7 @@ describe('Workspace classification UI', () => {
     state['setOverviewMode'] = vi.fn();
     state['overview'] = {
       isForecast: false,
-      indicators: { totalIncome: 10_000, totalExpenses: 4_000, realizedIncome: 8_000, realizedExpenses: 3_000, investmentBalance: 0, cardOpenTotal: 0, budgetCommitted: 4_000 },
+      indicators: { previousMonthAvailableBalance: 9_999_99, totalIncome: 10_000, totalExpenses: 4_000, realizedIncome: 8_000, realizedExpenses: 3_000, investmentBalance: 0, cardOpenTotal: 0, budgetCommitted: 4_000 },
       upcomingStatements: [],
     };
     const fixture = TestBed.createComponent(WorkspacePageComponent);
@@ -100,6 +118,7 @@ describe('Workspace classification UI', () => {
 
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('.balance-card')?.textContent).toContain('Saldo projetado');
+    expect(element.querySelector('.balance-card')?.textContent).toContain('Saldo mês anterior: R$ 9.999,99');
     expect(element.querySelector('.overview-metrics')?.textContent).toContain('Projetado');
     expect(element.querySelector('.overview-metrics')?.textContent).toContain('Realizado:');
     (element.querySelectorAll('.overview-mode-control button')[1] as HTMLButtonElement).click();

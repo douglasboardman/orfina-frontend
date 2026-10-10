@@ -22,7 +22,7 @@ export interface Category { id: string; name: string; type: TransactionType; col
 export type TransactionStatus = 'PENDING' | 'POSTED' | 'DISCARDED';
 export type AccountTransferStatus = TransactionStatus;
 export type TransactionMode = 'SINGLE' | 'FIXED' | 'INSTALLMENT';
-export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; notes?: string; accountId?: string; cardId?: string; installmentPurchaseId?: string; recurringRuleId?: string; mode?: TransactionMode; installmentNumber?: number; installmentCount?: number; startInstallmentNumber?: number; isForecast?: boolean; account?: Account; card?: Card; installmentPurchase?: { totalAmount: number; installmentCount: number; startInstallmentNumber: number } | null; subcategory: Subcategory & { category: Category }; }
+export interface Transaction { id: string; description: string; amount: number; type: TransactionType; status: TransactionStatus; occurredOn: string; financialOn?: string; notes?: string; accountId?: string; cardId?: string; installmentPurchaseId?: string; recurringRuleId?: string; mode?: TransactionMode; installmentNumber?: number; installmentCount?: number; startInstallmentNumber?: number; isForecast?: boolean; account?: Account; card?: Card; installmentPurchase?: { totalAmount: number; installmentCount: number; startInstallmentNumber: number } | null; subcategory: Subcategory & { category: Category }; }
 export interface TransactionFilters { page?: number; pageSize?: number; from?: string; to?: string; accountId?: string; cardId?: string; statementId?: string; recurringRuleId?: string; categoryId?: string; subcategoryId?: string; type?: TransactionType; status?: TransactionStatus; importBatchId?: string; }
 export interface TransactionPage { items: Transaction[]; total: number; page: number; pageSize: number; }
 export interface Overview {
@@ -35,7 +35,7 @@ export interface Overview {
   cardOpenTotal: number;
   upcomingStatements: (CardStatement & { card: Card })[];
   recurringForecast: { id: string; amount: number; description: string; startOn: string; endOn?: string }[];
-  indicators: { availableBalance: number; projectedAvailableBalance?: number; realizedIncome: number; realizedExpenses: number; pendingIncome?: number; pendingExpenses?: number; totalIncome?: number; totalExpenses?: number; pendingCommitments: number; cardOpenTotal: number; budgetCommitted: number; investmentBalance?: number };
+  indicators: { availableBalance: number; previousMonthAvailableBalance?: number; projectedAvailableBalance?: number; realizedIncome: number; realizedExpenses: number; pendingIncome?: number; pendingExpenses?: number; totalIncome?: number; totalExpenses?: number; pendingCommitments: number; cardOpenTotal: number; budgetCommitted: number; investmentBalance?: number };
   comparison: { income: { current: number; previous: number }; expenses: { current: number; previous: number }; balance: { current: number; previous: number } };
   charts: { weeklyFlow: { week: number; income: number; expenses: number }[]; projectedWeeklyFlow?: { week: number; income: number; expenses: number }[]; expenseByCategory: { categoryId: string; name: string; color: string; amount: number }[]; projectedExpenseByCategory?: { categoryId: string; name: string; color: string; amount: number }[]; budget: { limitAmount: number; spentAmount: number; pendingAmount: number } };
 }
