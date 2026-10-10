@@ -1,7 +1,7 @@
 import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 import { TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkspaceState } from './core/workspace-state.service';
 import { Category, Transaction } from './models';
 import { WorkspacePageComponent } from './workspace-page.component';
@@ -79,6 +79,36 @@ describe('Workspace classification UI', () => {
     expect(filters.textContent).toContain('outubro de 2026');
     expect(filters.querySelectorAll('[aria-label="Mês anterior"], [aria-label="Próximo mês"]')).toHaveLength(2);
     expect(filters.querySelectorAll('input[name="filterFrom"], input[name="filterTo"]')).toHaveLength(0);
+  });
+
+  it('opens the overview in the projected lens and exposes the realized switch', () => {
+    state['activeView'] = 'overview';
+    state['displayedAccounts'] = [];
+    state['isProjectedOverview'] = true;
+    state['dashboardBalance'] = 12_000;
+    state['dashboardWeeklyFlow'] = [{ week: 1, income: 10_000, expenses: 4_000 }];
+    state['dashboardExpenseByCategory'] = [];
+    state['weeklyPercent'] = () => 50;
+    state['setOverviewMode'] = vi.fn();
+    state['overview'] = {
+      isForecast: false,
+      indicators: { totalIncome: 10_000, totalExpenses: 4_000, realizedIncome: 8_000, realizedExpenses: 3_000, investmentBalance: 0, cardOpenTotal: 0, budgetCommitted: 4_000 },
+      upcomingStatements: [],
+    };
+    const fixture = TestBed.createComponent(WorkspacePageComponent);
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('.balance-card')?.textContent).toContain('Saldo projetado');
+    expect(element.querySelector('.overview-metrics')?.textContent).toContain('Projetado');
+    expect(element.querySelector('.overview-metrics')?.textContent).toContain('Realizado:');
+    (element.querySelectorAll('.overview-mode-control button')[1] as HTMLButtonElement).click();
+    expect(state['setOverviewMode']).toHaveBeenCalledWith('REALIZED');
+
+    state['isProjectedOverview'] = false;
+    fixture.detectChanges();
+    expect(element.querySelector('.overview-metrics')?.textContent).toContain('Projetado:');
+    expect(element.querySelector('.overview-metrics')?.textContent).toContain('Realizado');
   });
 
   it('offers one chip autocomplete for selecting automatic and specific subcategories', async () => {

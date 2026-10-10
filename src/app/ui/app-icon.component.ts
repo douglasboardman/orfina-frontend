@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, Input, Type } from '@angular/core';
 import {
   LucideArrowDownLeft, LucideArrowDownUp, LucideArrowLeftRight, LucideArrowUpRight, LucideBadgeDollarSign, LucideChevronDown, LucideChevronLeft,
   LucideChevronRight, LucideCircle, LucideClock3, LucideCreditCard, LucideGoal, LucideHouse, LucideLandmark,
-  LucideLayoutDashboard, LucideLogOut, LucideMenu, LucideMoon, LucidePlus, LucideSun,
+  LucideEye, LucideLayoutDashboard, LucideLogOut, LucideMenu, LucideMoon, LucidePencil, LucidePlus, LucideSun, LucideTrash2,
   LucideReceiptText, LucideRefreshCcw, LucideTags, LucideUpload, LucideUsersRound, LucideWalletCards, LucideX,
 } from '@lucide/angular';
 
@@ -34,6 +34,7 @@ const icons: Record<string, Type<unknown>> = {
   theme: LucideMoon, moon: LucideMoon, sun: LucideSun, logout: LucideLogOut, plus: LucidePlus, sync: LucideRefreshCcw,
   planned: LucideWalletCards, spent: LucideReceiptText, pending: LucideClock3,
   available: LucideBadgeDollarSign,
+  view: LucideEye, edit: LucidePencil, delete: LucideTrash2, pay: LucideBadgeDollarSign,
 };
 
 const paths: Record<string, string> = {

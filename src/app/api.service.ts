@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { Account, AccountTransfer, AccountTransferStatus, BudgetSummary, Card, CardStatement, Category, FinancialRealizationMode, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringRuleStatus, RecurringTransferRule, RecurringTransferRuleStatus, SavingsGoal, SavingsGoalStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionStatus, TransactionType } from './models';
+import { Account, AccountTransfer, AccountTransferStatus, ArchivedFinanceItems, ArchivedFinanceItemType, BudgetSummary, Card, CardStatement, Category, FinancialRealizationMode, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringRuleStatus, RecurringTransferRule, RecurringTransferRuleStatus, SavingsGoal, SavingsGoalStatus, Subcategory, Transaction, TransactionFilters, TransactionPage, TransactionStatus, TransactionType } from './models';
 import { CardNetwork } from './financial-brands';
 import { environment } from '../environments/environment';
 
@@ -20,7 +20,9 @@ export class ApiService {
   async createHousehold(name: string): Promise<Household> { return this.request('/households', { method: 'POST', body: JSON.stringify({ name }) }); }
   async updateHousehold(id: string, data: { name?: string; recurringMaterializationMode?: RecurringMaterializationMode; recurringMaterializationValue?: number; financialRealizationMode?: FinancialRealizationMode }): Promise<Household> { return this.request(`/households/${id}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async householdMembers(id: string): Promise<HouseholdMember[]> { return this.request(`/households/${id}/members`); }
+  async archivedHouseholdMembers(id: string): Promise<HouseholdMember[]> { return this.request(`/households/${id}/archived-members`); }
   async updateHouseholdMember(id: string, memberUserId: string, data: { role: 'MANAGER' | 'MEMBER' | 'VIEWER'; displayName?: string; isActive: boolean; archive: boolean }): Promise<HouseholdMember> { return this.request(`/households/${id}/members/${memberUserId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
+  async deleteArchivedHouseholdMember(id: string, memberUserId: string): Promise<void> { await this.request(`/households/${id}/members/${memberUserId}`, { method: 'DELETE' }); }
   async householdInvitations(id: string): Promise<HouseholdInvitation[]> { return this.request(`/households/${id}/invitations`); }
   async createHouseholdInvitation(id: string, data: { email: string; role: 'MANAGER' | 'MEMBER' | 'VIEWER' }): Promise<HouseholdInvitation> { return this.request(`/households/${id}/invitations`, { method: 'POST', body: JSON.stringify(data) }); }
   async revokeHouseholdInvitation(id: string, invitationId: string): Promise<HouseholdInvitation> { return this.request(`/households/${id}/invitations/${invitationId}/revoke`, { method: 'PATCH' }); }
@@ -41,6 +43,7 @@ export class ApiService {
   async updateCard(id: string, cardId: string, data: { name?: string; issuerName?: string; issuerLogoUrl?: string; network?: CardNetwork; lastFour?: string; creditLimit?: number; closingDay?: number; dueDay?: number }): Promise<Card> { return this.request(`/households/${id}/cards/${cardId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async setCardStatus(id: string, cardId: string, isActive: boolean): Promise<Card> { return this.request(`/households/${id}/cards/${cardId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
   async cardStatements(id: string, cardId: string): Promise<CardStatement[]> { return this.request(`/households/${id}/cards/${cardId}/statements`); }
+  async statements(id: string, referenceMonth?: string): Promise<CardStatement[]> { return this.request(`/households/${id}/statements${referenceMonth ? `?referenceMonth=${encodeURIComponent(referenceMonth)}` : ''}`); }
   async closeStatement(id: string, statementId: string): Promise<CardStatement> { return this.request(`/households/${id}/statements/${statementId}/close`, { method: 'POST' }); }
   async payStatement(id: string, statementId: string, data: { accountId: string; amount: number; paidOn: string; idempotencyKey: string }): Promise<void> { await this.request(`/households/${id}/statements/${statementId}/payments`, { method: 'POST', body: JSON.stringify(data) }); }
   async createInstallmentPurchase(id: string, data: { accountId?: string; cardId?: string; subcategoryId: string; type: TransactionType; totalAmount: number; installmentCount: number; startInstallmentNumber: number; description: string; firstOccurredOn: string; notes?: string }): Promise<void> { await this.request(`/households/${id}/installment-purchases`, { method: 'POST', body: JSON.stringify(data) }); }
@@ -56,8 +59,10 @@ export class ApiService {
   async copyBudgets(id: string, sourceMonth: string, targetMonth: string): Promise<void> { await this.request(`/households/${id}/budgets/copy`, { method: 'POST', body: JSON.stringify({ sourceMonth, targetMonth }) }); }
   async setBudgetMonthClosed(id: string, month: string, closed: boolean): Promise<void> { await this.request(`/households/${id}/budgets/${month}/${closed ? 'close' : 'reopen'}`, { method: 'POST' }); }
   async goals(id: string): Promise<SavingsGoal[]> { return this.request(`/households/${id}/goals`); }
+  async archivedGoals(id: string): Promise<SavingsGoal[]> { return this.request(`/households/${id}/archived-goals`); }
   async createGoal(id: string, data: { name: string; targetAmount: number; targetDate?: string; color: string; icon?: string }): Promise<SavingsGoal> { return this.request(`/households/${id}/goals`, { method: 'POST', body: JSON.stringify(data) }); }
   async setGoalStatus(id: string, goalId: string, status: SavingsGoalStatus): Promise<SavingsGoal> { return this.request(`/households/${id}/goals/${goalId}/status`, { method: 'PATCH', body: JSON.stringify({ status }) }); }
+  async deleteArchivedGoal(id: string, goalId: string): Promise<void> { await this.request(`/households/${id}/goals/${goalId}`, { method: 'DELETE' }); }
   async contributeToGoal(id: string, goalId: string, data: { amount: number; occurredOn: string; notes?: string; idempotencyKey: string }): Promise<void> { await this.request(`/households/${id}/goals/${goalId}/contributions`, { method: 'POST', body: JSON.stringify(data) }); }
   async createCategory(id: string, data: { name: string; type: TransactionType; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateCategory(id: string, categoryId: string, data: { name: string; color: string; icon: string }): Promise<Category> { return this.request(`/households/${id}/categories/${categoryId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
@@ -65,6 +70,8 @@ export class ApiService {
   async createSubcategory(id: string, categoryId: string, data: { name: string }): Promise<Subcategory> { return this.request(`/households/${id}/categories/${categoryId}/subcategories`, { method: 'POST', body: JSON.stringify(data) }); }
   async updateSubcategory(id: string, subcategoryId: string, data: { name: string }): Promise<Subcategory> { return this.request(`/households/${id}/subcategories/${subcategoryId}`, { method: 'PATCH', body: JSON.stringify(data) }); }
   async setSubcategoryStatus(id: string, subcategoryId: string, isActive: boolean): Promise<Subcategory> { return this.request(`/households/${id}/subcategories/${subcategoryId}/status`, { method: 'PATCH', body: JSON.stringify({ isActive }) }); }
+  async archivedFinanceItems(id: string): Promise<ArchivedFinanceItems> { return this.request(`/households/${id}/archived-items`); }
+  async deleteArchivedFinanceItem(id: string, type: ArchivedFinanceItemType, itemId: string): Promise<void> { await this.request(`/households/${id}/archived-items/${type}/${itemId}`, { method: 'DELETE' }); }
   async transactions(id: string, filters: TransactionFilters = {}): Promise<TransactionPage> {
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) if (value !== undefined && value !== '') query.set(key, String(value));

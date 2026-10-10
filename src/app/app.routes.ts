@@ -11,6 +11,7 @@ export const productRoutes: Routes = [
   { path: 'cartoes', pathMatch: 'full', loadComponent: workspacePage, data: { view: 'cards' } },
   { path: 'cartoes/novo', loadComponent: workspacePage, data: { view: 'cards', action: 'create' } },
   { path: 'cartoes/parcelamentos/nova', loadComponent: workspacePage, data: { view: 'cards', action: 'installment' } },
+  { path: 'cartoes/faturas/:cardId/:statementId', loadComponent: workspacePage, data: { view: 'cards', action: 'statement-detail' } },
   { path: 'cartoes/:id/editar', loadComponent: workspacePage, data: { view: 'cards', action: 'edit' } },
   { path: 'recorrencias', pathMatch: 'full', loadComponent: workspacePage, data: { view: 'recurrences' } },
   { path: 'recorrencias/nova', loadComponent: workspacePage, data: { view: 'recurrences', action: 'create' } },

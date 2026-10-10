@@ -2,7 +2,7 @@ import { Subscription } from 'rxjs';
 import { ApplicationRef, Injectable, OnInit } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
 import { ApiError, ApiService } from '../api.service';
-import { Account, AccountTransfer, AccountType, BudgetSummary, Card, CardStatement, Category, FinancialRealizationMode, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringTransferRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
+import { Account, AccountTransfer, AccountType, ArchivedFinanceItems, ArchivedFinanceItemType, BudgetSummary, Card, CardStatement, Category, FinancialRealizationMode, Household, HouseholdInvitation, HouseholdMember, ImportBatch, InstallmentPurchase, Overview, RecurringMaterializationMode, RecurringRule, RecurringTransferRule, SavingsGoal, Theme, Transaction, TransactionFilters, TransactionStatus, TransactionType } from '../models';
 import { bankLogoUrlFor, brazilianBanks, cardNetworks, CardNetwork } from '../financial-brands';
 import { SessionStore } from './session.store';
 import { UiStore } from './ui.store';
@@ -15,12 +15,19 @@ import type { FinancialEntryMode } from '../ui/financial-entry-form.component';
 @Injectable({ providedIn: 'root' })
 export class WorkspaceState implements OnInit {
   householdMembers: HouseholdMember[] = [];
+  archivedHouseholdMembers: HouseholdMember[] = [];
   householdInvitations: HouseholdInvitation[] = [];
   myHouseholdInvitations: HouseholdInvitation[] = [];
   overview?: Overview;
   accounts: Account[] = [];
   cards: Card[] = [];
   cardStatements: CardStatement[] = [];
+  statements: CardStatement[] = [];
+  statementDetail?: CardStatement;
+  statementTransactions: Transaction[] = [];
+  statementTransactionTotal = 0;
+  statementFilters: { search: string; categoryId: string; status: '' | TransactionStatus; mode: '' | 'SINGLE' | 'FIXED' | 'INSTALLMENT' } = { search: '', categoryId: '', status: '', mode: '' };
+  transactionDeletionCandidate?: Transaction;
   selectedCard?: Card;
   paymentStatement?: CardStatement;
   paymentAmount = 0;
@@ -35,6 +42,9 @@ export class WorkspaceState implements OnInit {
   importBatches: ImportBatch[] = [];
   importPreview?: ImportBatch;
   categories: Category[] = [];
+  archivedFinanceItems: ArchivedFinanceItems = { accounts: [], cards: [], categories: [], subcategories: [] };
+  archivedGoals: SavingsGoal[] = [];
+  archivedDeletionBlockedMessage = '';
   transactions: Transaction[] = [];
   transactionTotal = 0;
   transactionPage = 1;
@@ -48,6 +58,8 @@ export class WorkspaceState implements OnInit {
   householdManagementOpen = false;
   quickCreateOpen = false;
   activeView: WorkspaceView = 'overview';
+  /** The dashboard opens in the planning lens; the choice only changes presentation. */
+  overviewMode: 'PROJECTED' | 'REALIZED' = 'PROJECTED';
   readonly brazilianBanks = brazilianBanks;
   readonly cardNetworks = cardNetworks;
   householdName = '';
@@ -117,7 +129,7 @@ export class WorkspaceState implements OnInit {
   editingOccurrence?: Transaction;
   occurrenceEditScope: 'ONE' | 'FOLLOWING' = 'ONE';
   transactionForm: { sourceType: 'ACCOUNT' | 'CARD'; accountId: string; cardId: string; subcategoryId: string; type: TransactionType; amount: number; description: string; occurredOn: string; notes: string } = { sourceType: 'ACCOUNT', accountId: '', cardId: '', subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: new Date().toISOString().slice(0, 10), notes: '' };
-  transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
+  transactionFilters: Omit<TransactionFilters, 'page' | 'pageSize'> = { from: '', to: '', accountId: '', cardId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
   transferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; occurredOn: string; description: string; status: 'PENDING' | 'POSTED' } = { sourceAccountId: '', destinationAccountId: '', amount: 0, occurredOn: new Date().toISOString().slice(0, 10), description: '', status: 'PENDING' };
   transferEntryMode: 'ONE_OFF' | 'RECURRING' = 'ONE_OFF';
   recurringTransferForm: { sourceAccountId: string; destinationAccountId: string; amount: number; description: string; startOn: string; endOn: string } = { sourceAccountId: '', destinationAccountId: '', amount: 0, description: '', startOn: new Date().toISOString().slice(0, 10), endOn: '' };
@@ -150,9 +162,9 @@ export class WorkspaceState implements OnInit {
   ngOnDestroy() { this.routeSubscription?.unsubscribe(); this.clearFinancialState(); }
   clearFinancialState() {
     this.householdContext.clear(); this.overview = undefined; this.accounts = []; this.cards = [];
-    this.categories = []; this.transactions = []; this.cardStatements = []; this.paymentStatement = undefined; this.recurringRules = [];
-    this.installmentPurchases = []; this.budgetSummary = undefined; this.savingsGoals = []; this.contributionGoal = undefined; this.transfers = []; this.recurringTransferRules = [];
-    this.importBatches = []; this.importPreview = undefined; this.householdMembers = []; this.householdInvitations = [];
+    this.categories = []; this.archivedFinanceItems = { accounts: [], cards: [], categories: [], subcategories: [] }; this.archivedGoals = []; this.archivedDeletionBlockedMessage = ''; this.transactions = []; this.cardStatements = []; this.paymentStatement = undefined; this.recurringRules = [];
+    this.installmentPurchases = []; this.statements = []; this.statementDetail = undefined; this.statementTransactions = []; this.statementTransactionTotal = 0; this.transactionDeletionCandidate = undefined; this.budgetSummary = undefined; this.savingsGoals = []; this.contributionGoal = undefined; this.transfers = []; this.recurringTransferRules = [];
+    this.importBatches = []; this.importPreview = undefined; this.householdMembers = []; this.archivedHouseholdMembers = []; this.householdInvitations = [];
     this.myHouseholdInvitations = []; this.quickCreateOpen = false; this.recurringTransferDialogOpen = false; this.editingRecurringTransferRuleId = undefined;
   }
   get isSystemAdmin() { return this.currentUser?.systemRole === 'SYSTEM_ADMIN'; }
@@ -245,7 +257,7 @@ export class WorkspaceState implements OnInit {
     if (this.activeView === 'imports') return 'Importações';
     if (this.activeView === 'transfers') return 'Transferências';
     if (this.activeView === 'accounts') return 'Contas';
-    if (this.activeView === 'cards') return 'Cartões';
+    if (this.activeView === 'cards') return this.isStatementDetailRoute ? 'Fatura do cartão' : 'Cartões';
     if (this.activeView === 'recurrences') return 'Recorrências';
     if (this.activeView === 'budget') return 'Orçamento';
     if (this.activeView === 'goals') return 'Metas';
@@ -259,6 +271,7 @@ export class WorkspaceState implements OnInit {
   }
   get isActionRoute() { return /\/(nova|novo(?:-limite)?|editar)(?:\/|$)/.test(this.router.url.split('?')[0]); }
   get isInstallmentAction() { return this.router.url.split('?')[0] === '/cartoes/parcelamentos/nova'; }
+  get isStatementDetailRoute() { return /^\/cartoes\/faturas\/[^/]+\/[^/]+$/.test(this.router.url.split('?')[0]); }
   get usesDrawerAction() { return this.isActionRoute && !this.isInstallmentAction && ['accounts', 'cards', 'categories', 'transactions'].includes(this.activeView); }
   get isSubcategoryAction() { return this.router.url.split('?')[0].startsWith('/categorias/subcategorias/'); }
   get actionDrawerLabel() {
@@ -269,6 +282,27 @@ export class WorkspaceState implements OnInit {
     if (this.activeView === 'categories') return this.editingCategoryId ? 'Editar categoria' : 'Nova categoria';
     return 'Formulário';
   }
+  get filteredStatementTransactions() {
+    const search = this.statementFilters.search.trim().toLocaleLowerCase('pt-BR');
+    return this.statementTransactions.filter((transaction) =>
+      (!search || transaction.description.toLocaleLowerCase('pt-BR').includes(search))
+      && (!this.statementFilters.categoryId || transaction.subcategory.category.id === this.statementFilters.categoryId)
+      && (!this.statementFilters.status || transaction.status === this.statementFilters.status)
+      && (!this.statementFilters.mode || transaction.mode === this.statementFilters.mode),
+    );
+  }
+  get statementOptions() {
+    return this.statementDetail ? this.statements.filter((item) => item.cardId === this.statementDetail!.cardId) : [];
+  }
+  /** The cards page is an operational view: only invoices closing in its current month belong in its table. */
+  get currentStatements() {
+    return this.statements.filter((item) => item.cycleEnd.slice(0, 7) === this.referenceMonth);
+  }
+  statementStatusLabel(status: CardStatement['status']) { return status === 'OPEN' ? 'Aberta' : status === 'CLOSED' ? 'Fechada' : 'Paga'; }
+  statementModeLabel(mode?: Transaction['mode']) { return mode === 'INSTALLMENT' ? 'Parcelada' : mode === 'FIXED' ? 'Fixa' : 'Avulsa'; }
+  statementPurchaseTotal(transaction: Transaction) { return transaction.installmentPurchase?.totalAmount ?? transaction.amount; }
+  statementLimitPercent(statement: CardStatement) { return statement.limitUsagePercent ?? 0; }
+  statementOutstanding(statement: CardStatement) { return Math.max(0, statement.totalAmount - statement.payments.reduce((sum, payment) => sum + payment.amount, 0)); }
   setCategoryTab(tab: 'EXPENSE' | 'INCOME') {
     this.categoryTab = tab;
     this.categoryPage = 1;
@@ -365,6 +399,7 @@ export class WorkspaceState implements OnInit {
       this.transactions = [];
       this.transactionTotal = 0;
       this.householdMembers = [];
+      this.archivedHouseholdMembers = [];
       this.householdInvitations = [];
       this.myHouseholdInvitations = [];
       this.ui.closeUserMenu();
@@ -401,6 +436,7 @@ export class WorkspaceState implements OnInit {
         this.groupName = this.activeHousehold.name;
         await this.loadDashboard();
         if (this.activeView === 'group' && this.canManageHouseholdUsers) await this.loadHouseholdManagement();
+        if (this.activeView === 'group' && this.canManageActiveHousehold) await this.loadArchivedItems();
         this.hydrateActionFromPath(this.router.url.split('?')[0]);
       }
     });
@@ -435,8 +471,12 @@ export class WorkspaceState implements OnInit {
   }
 
   openAction(path: string) { void this.router.navigateByUrl(path); }
-  openCardFinancialEntry() {
-    this.cardCreationMode = 'INSTALLMENT';
+  openCardFinancialEntry(card: Card) {
+    const today = new Date().toISOString().slice(0, 10);
+    this.cardCreationMode = 'ONE_OFF';
+    this.transactionForm = { sourceType: 'CARD', accountId: '', cardId: card.id, subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', occurredOn: today, notes: '' };
+    this.recurringForm = { sourceType: 'CARD', accountId: '', cardId: card.id, subcategoryId: '', type: 'EXPENSE', amount: 0, description: '', startOn: today, endOn: '' };
+    this.installmentForm = { sourceType: 'CARD', accountId: '', cardId: card.id, subcategoryId: '', type: 'EXPENSE', totalAmount: 0, installmentCount: 2, startInstallmentNumber: 1, description: '', firstOccurredOn: today };
     this.lockFinancialFormsToCard();
     this.openAction('/cartoes/parcelamentos/nova');
   }
@@ -466,8 +506,35 @@ export class WorkspaceState implements OnInit {
     await this.applyTransactionFilters();
   }
 
+  get isProjectedOverview() { return this.overviewMode === 'PROJECTED'; }
+
+  get dashboardBalance() {
+    const indicators = this.overview?.indicators;
+    return this.isProjectedOverview
+      ? (indicators?.projectedAvailableBalance ?? indicators?.availableBalance ?? this.overview?.totalBalance ?? 0)
+      : (indicators?.availableBalance ?? this.overview?.totalBalance ?? 0);
+  }
+
+  get dashboardWeeklyFlow() {
+    return this.isProjectedOverview
+      ? (this.overview?.charts?.projectedWeeklyFlow ?? this.overview?.charts?.weeklyFlow ?? [])
+      : (this.overview?.charts?.weeklyFlow ?? []);
+  }
+
+  get dashboardExpenseByCategory() {
+    return this.isProjectedOverview
+      ? (this.overview?.charts?.projectedExpenseByCategory ?? this.overview?.charts?.expenseByCategory ?? [])
+      : (this.overview?.charts?.expenseByCategory ?? []);
+  }
+
+  setOverviewMode(mode: 'PROJECTED' | 'REALIZED') {
+    if (this.overviewMode === mode) return;
+    this.overviewMode = mode;
+    this.render();
+  }
+
   weeklyPercent(week: { income: number; expenses: number }, key: 'income' | 'expenses') {
-    const highest = Math.max(...(this.overview?.charts?.weeklyFlow ?? []).flatMap((item) => [item.income, item.expenses]), 1);
+    const highest = Math.max(...this.dashboardWeeklyFlow.flatMap((item) => [item.income, item.expenses]), 1);
     return Math.max(2, Math.round((week[key] / highest) * 100));
   }
 
@@ -562,8 +629,9 @@ export class WorkspaceState implements OnInit {
     if (!this.activeHousehold || !member || !this.canManageHouseholdUsers) return;
     await this.run(async () => {
       const updated = await this.api.updateHouseholdMember(this.activeHousehold!.id, member.userId, { ...this.memberEditForm, displayName: this.memberEditForm.displayName.trim() || undefined });
-      this.householdMembers = this.householdMembers.map((item) => item.userId === updated.userId ? updated : item);
       this.editingHouseholdMember = undefined;
+      await this.loadHouseholdManagement();
+      await this.loadArchivedItems();
     });
   }
 
@@ -606,7 +674,7 @@ export class WorkspaceState implements OnInit {
   }
 
   async viewAccountTransactions(account: Account) {
-    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: account.id, categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
+    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: account.id, cardId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
     this.selectView('transactions');
     await this.applyTransactionFilters();
   }
@@ -622,6 +690,7 @@ export class WorkspaceState implements OnInit {
     await this.run(async () => {
       await this.api.setAccountStatus(this.activeHousehold!.id, account.id, isActive);
       await this.loadDashboard();
+      await this.loadArchivedItems();
     });
   }
 
@@ -661,9 +730,55 @@ export class WorkspaceState implements OnInit {
     await this.run(async () => { this.selectedCard = card; this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, card.id); });
   }
 
+  async openStatement(statement: CardStatement) {
+    const card = statement.card ?? this.cards.find((item) => item.id === statement.cardId);
+    if (!card) return;
+    await this.router.navigateByUrl(`/cartoes/faturas/${card.id}/${statement.id}`);
+  }
+
+  async selectStatement(statementId: string) {
+    if (!this.statementDetail) return;
+    const statement = this.statements.find((item) => item.id === statementId);
+    if (statement) await this.openStatement(statement);
+  }
+
+  clearStatementFilters() {
+    this.statementFilters = { search: '', categoryId: '', status: '', mode: '' };
+    this.render();
+  }
+
+  private async hydrateStatementDetailFromPath(path: string) {
+    const match = path.match(/^\/cartoes\/faturas\/([^/]+)\/([^/]+)$/);
+    if (!match || !this.activeHousehold) {
+      this.statementDetail = undefined;
+      this.statementTransactions = [];
+      this.statementTransactionTotal = 0;
+      return;
+    }
+    const [, cardId, statementId] = match;
+    const statement = this.statements.find((item) => item.id === statementId && item.cardId === cardId)
+      ?? (await this.api.statements(this.activeHousehold.id)).find((item) => item.id === statementId && item.cardId === cardId);
+    if (!statement) {
+      this.statementDetail = undefined;
+      this.statementTransactions = [];
+      this.statementTransactionTotal = 0;
+      this.error = 'Fatura não encontrada.';
+      return;
+    }
+    const page = await this.api.transactions(this.activeHousehold.id, { statementId, page: 1, pageSize: 100 });
+    this.statementDetail = statement;
+    this.statementTransactions = page.items;
+    this.statementTransactionTotal = page.total;
+  }
+
   async closeStatement(statement: CardStatement) {
     if (!this.activeHousehold || !confirm('Fechar esta fatura? Ajustes posteriores deverão ser rastreáveis.')) return;
-    await this.run(async () => { await this.api.closeStatement(this.activeHousehold!.id, statement.id); if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id); });
+    await this.run(async () => {
+      await this.api.closeStatement(this.activeHousehold!.id, statement.id);
+      if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id);
+      this.statements = await this.api.statements(this.activeHousehold!.id);
+      await this.hydrateStatementDetailFromPath(this.router.url.split('?')[0]);
+    });
   }
 
   async payStatement(statement: CardStatement) {
@@ -693,6 +808,7 @@ export class WorkspaceState implements OnInit {
       await this.api.payStatement(this.activeHousehold!.id, statement.id, { accountId, amount: Math.round(this.paymentAmount * 100), paidOn: new Date().toISOString().slice(0, 10), idempotencyKey: crypto.randomUUID() });
       if (this.selectedCard) this.cardStatements = await this.api.cardStatements(this.activeHousehold!.id, this.selectedCard.id);
       await this.loadDashboard();
+      await this.hydrateStatementDetailFromPath(this.router.url.split('?')[0]);
       this.paymentStatement = undefined;
       this.paymentAmount = 0;
     });
@@ -868,12 +984,12 @@ export class WorkspaceState implements OnInit {
   }
   async setGoalStatus(goal: SavingsGoal, status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED') {
     if (!this.activeHousehold) return;
-    await this.run(async () => { await this.api.setGoalStatus(this.activeHousehold!.id, goal.id, status); this.savingsGoals = await this.api.goals(this.activeHousehold!.id); });
+    await this.run(async () => { await this.api.setGoalStatus(this.activeHousehold!.id, goal.id, status); this.savingsGoals = await this.api.goals(this.activeHousehold!.id); await this.loadArchivedItems(); });
   }
 
   async setCardStatus(card: Card, isActive: boolean) {
     if (!this.activeHousehold || !confirm(`${isActive ? 'Reativar' : 'Arquivar'} o cartão ${card.name}?`)) return;
-    await this.run(async () => { await this.api.setCardStatus(this.activeHousehold!.id, card.id, isActive); this.cards = await this.api.cards(this.activeHousehold!.id); });
+    await this.run(async () => { await this.api.setCardStatus(this.activeHousehold!.id, card.id, isActive); await this.loadDashboard(); await this.loadArchivedItems(); });
   }
 
   async saveCategory() {
@@ -905,6 +1021,7 @@ export class WorkspaceState implements OnInit {
     await this.run(async () => {
       await this.api.setCategoryStatus(this.activeHousehold!.id, category.id, isActive);
       this.categories = await this.api.categories(this.activeHousehold!.id);
+      await this.loadArchivedItems();
     });
   }
 
@@ -936,7 +1053,98 @@ export class WorkspaceState implements OnInit {
     await this.run(async () => {
       await this.api.setSubcategoryStatus(this.activeHousehold!.id, subcategory.id, isActive);
       this.categories = await this.api.categories(this.activeHousehold!.id);
+      await this.loadArchivedItems();
     });
+  }
+
+  archivedItemTypeLabel(type: ArchivedFinanceItemType) {
+    return ({ ACCOUNT: 'Conta', CARD: 'Cartão', CATEGORY: 'Categoria', SUBCATEGORY: 'Subcategoria' } as const)[type];
+  }
+
+  async reactivateArchivedFinanceItem(type: ArchivedFinanceItemType, item: { id: string; name: string }) {
+    if (!this.activeHousehold || !confirm(`Reativar ${this.archivedItemTypeLabel(type).toLowerCase()} ${item.name}?`)) return;
+    await this.run(async () => {
+      if (type === 'ACCOUNT') await this.api.setAccountStatus(this.activeHousehold!.id, item.id, true);
+      else if (type === 'CARD') await this.api.setCardStatus(this.activeHousehold!.id, item.id, true);
+      else if (type === 'CATEGORY') await this.api.setCategoryStatus(this.activeHousehold!.id, item.id, true);
+      else await this.api.setSubcategoryStatus(this.activeHousehold!.id, item.id, true);
+      await this.loadDashboard();
+      await this.loadArchivedItems();
+    });
+  }
+
+  async reactivateArchivedGoal(goal: SavingsGoal) {
+    if (!this.activeHousehold || !confirm(`Reativar a meta ${goal.name}?`)) return;
+    await this.run(async () => {
+      await this.api.setGoalStatus(this.activeHousehold!.id, goal.id, 'ACTIVE');
+      await this.loadDashboard();
+      await this.loadArchivedItems();
+    });
+  }
+
+  async reactivateArchivedHouseholdMember(member: HouseholdMember) {
+    if (!this.activeHousehold || !this.canManageHouseholdUsers || !confirm(`Reativar ${member.displayName || member.user.name} neste grupo?`)) return;
+    await this.run(async () => {
+      await this.api.updateHouseholdMember(this.activeHousehold!.id, member.userId, { role: member.role as 'MANAGER' | 'MEMBER' | 'VIEWER', displayName: member.displayName, isActive: true, archive: false });
+      await this.loadHouseholdManagement();
+      await this.loadArchivedItems();
+    });
+  }
+
+  async deleteArchivedFinanceItem(type: ArchivedFinanceItemType, item: { id: string; name: string }) {
+    if (!this.activeHousehold || !confirm(`Excluir definitivamente ${this.archivedItemTypeLabel(type).toLowerCase()} ${item.name}? Esta ação não pode ser desfeita.`)) return;
+    this.loading = true;
+    this.archivedDeletionBlockedMessage = '';
+    this.render();
+    try {
+      await this.api.deleteArchivedFinanceItem(this.activeHousehold.id, type, item.id);
+      await this.loadDashboard();
+      await this.loadArchivedItems();
+    } catch (error: unknown) {
+      this.archivedDeletionBlockedMessage = this.messageForError(error);
+    } finally {
+      this.loading = false;
+      this.render();
+    }
+  }
+
+  async deleteArchivedGoal(goal: SavingsGoal) {
+    if (!this.activeHousehold || !confirm(`Excluir definitivamente a meta ${goal.name}? Esta ação não pode ser desfeita.`)) return;
+    this.loading = true;
+    this.archivedDeletionBlockedMessage = '';
+    this.render();
+    try {
+      await this.api.deleteArchivedGoal(this.activeHousehold.id, goal.id);
+      await this.loadDashboard();
+      await this.loadArchivedItems();
+    } catch (error: unknown) {
+      this.archivedDeletionBlockedMessage = this.messageForError(error);
+    } finally {
+      this.loading = false;
+      this.render();
+    }
+  }
+
+  async deleteArchivedHouseholdMember(member: HouseholdMember) {
+    if (!this.activeHousehold || !this.canManageHouseholdUsers || !confirm(`Excluir definitivamente o vínculo de ${member.displayName || member.user.name} deste grupo? Esta ação não pode ser desfeita.`)) return;
+    this.loading = true;
+    this.archivedDeletionBlockedMessage = '';
+    this.render();
+    try {
+      await this.api.deleteArchivedHouseholdMember(this.activeHousehold.id, member.userId);
+      await this.loadHouseholdManagement();
+      await this.loadArchivedItems();
+    } catch (error: unknown) {
+      this.archivedDeletionBlockedMessage = this.messageForError(error);
+    } finally {
+      this.loading = false;
+      this.render();
+    }
+  }
+
+  closeArchivedDeletionBlockedMessage() {
+    this.archivedDeletionBlockedMessage = '';
+    this.render();
   }
 
   onTransactionTypeChange() { this.transactionForm.subcategoryId = ''; }
@@ -949,12 +1157,22 @@ export class WorkspaceState implements OnInit {
   }
 
   clearTransactionFilters() {
-    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
+    this.transactionFilters = { ...this.transactionMonthBounds(), accountId: '', cardId: '', categoryId: '', subcategoryId: '', type: undefined, status: undefined, importBatchId: '' };
     void this.applyTransactionFilters();
   }
 
   onFilterCategoryChange() {
     this.transactionFilters.subcategoryId = '';
+    void this.applyTransactionFilters();
+  }
+
+  onFilterAccountChange() {
+    this.transactionFilters.cardId = '';
+    void this.applyTransactionFilters();
+  }
+
+  onFilterCardChange() {
+    this.transactionFilters.accountId = '';
     void this.applyTransactionFilters();
   }
 
@@ -1036,17 +1254,34 @@ export class WorkspaceState implements OnInit {
     const item = typeof transaction === 'string' ? this.transactions.find((candidate) => candidate.id === transaction) : transaction;
     if (!item) return;
     const scheduled = Boolean(item.recurringRuleId || item.installmentPurchaseId);
-    let scope: 'ONE' | 'FOLLOWING' | 'ALL' = 'ONE';
     if (scheduled) {
-      const choice = prompt('Excluir lançamento agendado:\nONE = somente esta ocorrência\nFOLLOWING = esta e as próximas\nALL = toda a série', 'ONE')?.toUpperCase();
-      if (choice !== 'ONE' && choice !== 'FOLLOWING' && choice !== 'ALL') return;
-      scope = choice;
+      this.transactionDeletionCandidate = item;
+      this.render();
+      return;
     }
-    const impact = scope === 'ALL' ? 'Toda a série será removida.' : scope === 'FOLLOWING' ? 'Esta e as próximas ocorrências serão removidas.' : 'Somente esta ocorrência será removida.';
+    await this.confirmTransactionDeletion(item, 'ONE');
+  }
+
+  cancelTransactionDeletion() {
+    this.transactionDeletionCandidate = undefined;
+    this.render();
+  }
+
+  async confirmScheduledTransactionDeletion(scope: 'ONE' | 'FOLLOWING') {
+    const item = this.transactionDeletionCandidate;
+    if (!item) return;
+    this.transactionDeletionCandidate = undefined;
+    await this.confirmTransactionDeletion(item, scope);
+  }
+
+  private async confirmTransactionDeletion(item: Transaction, scope: 'ONE' | 'FOLLOWING') {
+    const scheduled = Boolean(item.recurringRuleId || item.installmentPurchaseId);
+    const impact = scope === 'FOLLOWING' ? 'Esta e as próximas ocorrências serão removidas.' : 'Somente esta ocorrência será removida.';
     if (!confirm(`Excluir ${scheduled ? 'lançamento agendado' : 'este lançamento'}? ${impact} Esta ação não pode ser desfeita.`)) return;
     await this.run(async () => {
       await this.api.deleteTransaction(this.activeHousehold!.id, item.id, scheduled ? scope : undefined);
       await this.loadDashboard();
+      await this.hydrateStatementDetailFromPath(this.router.url.split('?')[0]);
     });
   }
 
@@ -1143,10 +1378,11 @@ export class WorkspaceState implements OnInit {
 
   private async loadDashboard() {
     if (!this.activeHousehold) return;
-    const [overview, accounts, cards, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, recurringTransferRules, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id, this.referenceMonth), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.referenceMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.recurringTransferRules(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
+    const [overview, accounts, cards, statements, categories, recurringRules, installmentPurchases, budgetSummary, savingsGoals, transfers, recurringTransferRules, importBatches] = await Promise.all([this.api.overview(this.activeHousehold.id, this.referenceMonth), this.api.accounts(this.activeHousehold.id), this.api.cards(this.activeHousehold.id), this.api.statements(this.activeHousehold.id), this.api.categories(this.activeHousehold.id), this.api.recurringRules(this.activeHousehold.id), this.api.installmentPurchases(this.activeHousehold.id), this.api.budgetSummary(this.activeHousehold.id, this.referenceMonth), this.api.goals(this.activeHousehold.id), this.api.transfers(this.activeHousehold.id), this.api.recurringTransferRules(this.activeHousehold.id), this.api.importBatches(this.activeHousehold.id)]);
     this.overview = overview;
     this.accounts = accounts;
     this.cards = cards;
+    this.statements = statements;
     this.categories = categories;
     this.recurringRules = recurringRules;
     this.installmentPurchases = installmentPurchases;
@@ -1158,7 +1394,9 @@ export class WorkspaceState implements OnInit {
     await this.loadTransactions();
     if (!this.transactionForm.accountId) this.transactionForm.accountId = this.overview.accounts[0]?.id ?? '';
     if (!this.importForm.accountId) this.importForm.accountId = this.overview.accounts[0]?.id ?? '';
-    this.hydrateActionFromPath(this.router.url.split('?')[0]);
+    const path = this.router.url.split('?')[0];
+    this.hydrateActionFromPath(path);
+    await this.hydrateStatementDetailFromPath(path);
   }
 
   private async loadTransactions() {
@@ -1177,6 +1415,18 @@ export class WorkspaceState implements OnInit {
       this.api.householdMembers(this.activeHousehold.id),
       this.api.householdInvitations(this.activeHousehold.id),
     ]);
+  }
+
+  private async loadArchivedItems() {
+    if (!this.activeHousehold || !this.canManageActiveHousehold) return;
+    const [financialItems, goals, members] = await Promise.all([
+      this.api.archivedFinanceItems(this.activeHousehold.id),
+      this.api.archivedGoals(this.activeHousehold.id),
+      this.canManageHouseholdUsers ? this.api.archivedHouseholdMembers(this.activeHousehold.id) : Promise.resolve([] as HouseholdMember[]),
+    ]);
+    this.archivedFinanceItems = financialItems;
+    this.archivedGoals = goals;
+    this.archivedHouseholdMembers = members;
   }
 
   private async run(action: () => Promise<void>) {
@@ -1219,13 +1469,15 @@ export class WorkspaceState implements OnInit {
     if (path === '/lancamentos/novo') this.transactionCreationMode = 'ONE_OFF';
     if (path === '/transferencias/nova') this.transferEntryMode = 'ONE_OFF';
     if (view === 'recurrences' && path.endsWith('/nova')) this.recurrenceCreationMode = 'FIXED';
-    if (path === '/cartoes/parcelamentos/nova') { this.cardCreationMode = 'INSTALLMENT'; this.lockFinancialFormsToCard(); }
+    if (path === '/cartoes/parcelamentos/nova') this.lockFinancialFormsToCard();
     if (view === 'group' && this.activeHousehold) {
       this.groupName = this.activeHousehold.name;
       this.financialRealizationMode = this.activeHousehold.financialRealizationMode ?? 'MANUAL';
       if (this.canManageHouseholdUsers) void this.run(() => this.loadHouseholdManagement());
+      if (this.canManageActiveHousehold) void this.run(() => this.loadArchivedItems());
     }
     this.hydrateActionFromPath(path);
+    if (view === 'cards' && this.activeHousehold) void this.run(() => this.hydrateStatementDetailFromPath(path));
     this.render();
   }
 
